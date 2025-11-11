@@ -12,6 +12,7 @@ class IsarDiagnosisRepository implements DiagnosisRepository {
 
   @override
   Future<Result<DiagnosisEntryEntity>> save(DiagnosisEntryEntity draft) async {
+    // ... (ta metoda jest poprawna, bez zmian) ...
     try {
       final d = DiagnosisEntry()
         ..timestamp = draft.timestamp
@@ -46,6 +47,8 @@ class IsarDiagnosisRepository implements DiagnosisRepository {
       await isar.writeTxn(() async {
         final d = await isar.diagnosisEntrys.get(entry.id);
         if (d == null) throw Exception('diagnosis.not_found');
+        
+        // 1. Skopiuj właściwości
         d
           ..timestamp = entry.timestamp
           ..imagePath = entry.imagePath
@@ -58,14 +61,27 @@ class IsarDiagnosisRepository implements DiagnosisRepository {
           ..confidence = entry.confidence
           ..recommendationKey = entry.recommendationKey
           ..notes = entry.notes;
+
+        // --- POCZĄTEK POPRAWKI ---
+
+        // 2. JAWNIE ZAŁADUJ aktualny stan linku z bazy
+        await d.fieldSeason.load();
+
+        // 3. Teraz modyfikuj link (gdy jest już "obudzony")
         if (entry.fieldSeasonId != null) {
+          // Przypisz nowy sezon (jeśli istnieje)
           final s = await isar.fieldSeasons.get(entry.fieldSeasonId!);
           d.fieldSeason.value = s;
         } else {
+          // Ustaw na null (aby "uosierocić")
           d.fieldSeason.value = null;
         }
+        
+        // 4. Zapisz obiekt ORAZ link
         await isar.diagnosisEntrys.put(d);
         await d.fieldSeason.save();
+
+        // --- KONIEC POPRAWKI ---
       });
       return const Result.ok(null);
     } catch (e) {
@@ -73,6 +89,7 @@ class IsarDiagnosisRepository implements DiagnosisRepository {
     }
   }
 
+  // ... (reszta metod 'listBySeason', 'listByField' itd. jest poprawna) ...
   @override
   Future<Result<List<DiagnosisEntryEntity>>> listBySeason(int seasonId) async {
     try {
