@@ -49,8 +49,9 @@ dependencies:
   permission_handler: ^12.0.1
   geolocator: ^14.0.2
   google_maps_flutter: ^2.14.0
-  tflite_flutter: ^0.12.1
-
+  pytorch_lite: ^3.0.0  
+  google_generative_ai: ^0.4.7
+  
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -74,7 +75,11 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
-
+  
+  assets:
+    - assets/static/
+    - assets/models/
+    
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg
