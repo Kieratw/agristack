@@ -12,7 +12,6 @@ class IsarDiagnosisRepository implements DiagnosisRepository {
 
   @override
   Future<Result<DiagnosisEntryEntity>> save(DiagnosisEntryEntity draft) async {
-    // ... (ta metoda jest poprawna, bez zmian) ...
     try {
       final d = DiagnosisEntry()
         ..timestamp = draft.timestamp
@@ -47,7 +46,7 @@ class IsarDiagnosisRepository implements DiagnosisRepository {
       await isar.writeTxn(() async {
         final d = await isar.diagnosisEntrys.get(entry.id);
         if (d == null) throw Exception('diagnosis.not_found');
-        
+
         // 1. Skopiuj właściwości
         d
           ..timestamp = entry.timestamp
@@ -62,9 +61,6 @@ class IsarDiagnosisRepository implements DiagnosisRepository {
           ..recommendationKey = entry.recommendationKey
           ..notes = entry.notes;
 
-        // --- POCZĄTEK POPRAWKI ---
-
-        // 2. JAWNIE ZAŁADUJ aktualny stan linku z bazy
         await d.fieldSeason.load();
 
         // 3. Teraz modyfikuj link (gdy jest już "obudzony")
@@ -76,7 +72,7 @@ class IsarDiagnosisRepository implements DiagnosisRepository {
           // Ustaw na null (aby "uosierocić")
           d.fieldSeason.value = null;
         }
-        
+
         // 4. Zapisz obiekt ORAZ link
         await isar.diagnosisEntrys.put(d);
         await d.fieldSeason.save();
@@ -98,6 +94,10 @@ class IsarDiagnosisRepository implements DiagnosisRepository {
           .fieldSeason((q) => q.idEqualTo(seasonId))
           .sortByTimestampDesc()
           .findAll();
+      // Load links before mapping
+      for (final item in list) {
+        await item.fieldSeason.load();
+      }
       return Result.ok(list.map((e) => e.toEntity()).toList());
     } catch (e) {
       return Result.err(AppError('db.read_failed', e.toString()));
@@ -105,16 +105,26 @@ class IsarDiagnosisRepository implements DiagnosisRepository {
   }
 
   @override
-  Future<Result<List<DiagnosisEntryEntity>>> listByField(int fieldId, {int? year}) async {
+  Future<Result<List<DiagnosisEntryEntity>>> listByField(
+    int fieldId, {
+    int? year,
+  }) async {
     try {
       if (year == null) {
-        final seasons = await isar.fieldSeasons.filter().field((q) => q.idEqualTo(fieldId)).findAll();
+        final seasons = await isar.fieldSeasons
+            .filter()
+            .field((q) => q.idEqualTo(fieldId))
+            .findAll();
         final ids = seasons.map((s) => s.id).toList();
         if (ids.isEmpty) return const Result.ok(<DiagnosisEntryEntity>[]);
         final list = await isar.diagnosisEntrys
             .filter()
             .fieldSeason((q) => q.anyOf(ids, (q2, id) => q2.idEqualTo(id)))
             .findAll();
+        // Load links before mapping
+        for (final item in list) {
+          await item.fieldSeason.load();
+        }
         return Result.ok(list.map((e) => e.toEntity()).toList());
       } else {
         final s = await isar.fieldSeasons
@@ -123,7 +133,14 @@ class IsarDiagnosisRepository implements DiagnosisRepository {
             .yearEqualTo(year)
             .findFirst();
         if (s == null) return const Result.ok(<DiagnosisEntryEntity>[]);
-        final list = await isar.diagnosisEntrys.filter().fieldSeason((q) => q.idEqualTo(s.id)).findAll();
+        final list = await isar.diagnosisEntrys
+            .filter()
+            .fieldSeason((q) => q.idEqualTo(s.id))
+            .findAll();
+        // Load links before mapping
+        for (final item in list) {
+          await item.fieldSeason.load();
+        }
         return Result.ok(list.map((e) => e.toEntity()).toList());
       }
     } catch (e) {
@@ -132,12 +149,19 @@ class IsarDiagnosisRepository implements DiagnosisRepository {
   }
 
   @override
-  Future<Result<List<DiagnosisEntryEntity>>> listByDateRange(DateTime from, DateTime to) async {
+  Future<Result<List<DiagnosisEntryEntity>>> listByDateRange(
+    DateTime from,
+    DateTime to,
+  ) async {
     try {
       final list = await isar.diagnosisEntrys
           .filter()
           .timestampBetween(from, to, includeLower: true, includeUpper: true)
           .findAll();
+      // Load links before mapping
+      for (final item in list) {
+        await item.fieldSeason.load();
+      }
       return Result.ok(list.map((e) => e.toEntity()).toList());
     } catch (e) {
       return Result.err(AppError('db.read_failed', e.toString()));
@@ -153,7 +177,10 @@ class IsarDiagnosisRepository implements DiagnosisRepository {
           .yearEqualTo(year)
           .findFirst();
       if (s == null) return const Result.ok(<String, int>{});
-      final list = await isar.diagnosisEntrys.filter().fieldSeason((q) => q.idEqualTo(s.id)).findAll();
+      final list = await isar.diagnosisEntrys
+          .filter()
+          .fieldSeason((q) => q.idEqualTo(s.id))
+          .findAll();
       final map = <String, int>{};
       for (final d in list) {
         map[d.canonicalDiseaseId] = (map[d.canonicalDiseaseId] ?? 0) + 1;
@@ -167,7 +194,14 @@ class IsarDiagnosisRepository implements DiagnosisRepository {
   @override
   Future<Result<List<DiagnosisEntryEntity>>> listOrphaned() async {
     try {
-      final list = await isar.diagnosisEntrys.filter().fieldSeasonIsNull().findAll();
+      final list = await isar.diagnosisEntrys
+          .filter()
+          .fieldSeasonIsNull()
+          .findAll();
+      // Load links before mapping (though they should be null)
+      for (final item in list) {
+        await item.fieldSeason.load();
+      }
       return Result.ok(list.map((e) => e.toEntity()).toList());
     } catch (e) {
       return Result.err(AppError('db.read_failed', e.toString()));

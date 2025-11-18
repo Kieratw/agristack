@@ -10,8 +10,8 @@
     ]
   },
   "tomato": {
-    "assetPath": "assets/models/tomato_v2.ptl",
-    "modelId": "tomato_v2_ptl",
+    "assetPath": "assets/models/tomato_v1.ptl",
+    "modelId": "tomato_v1_ptl",
     "inputSize": 380,
     "classNames": [
       "Bacterial_spot227",
@@ -45,7 +45,7 @@
     "modelId": "rape_v1_ptl",
     "inputSize": 380,
     "classNames": [
-     "Alt",
+    "Alt",
     "Big",
     "Bot",
     "Mac",

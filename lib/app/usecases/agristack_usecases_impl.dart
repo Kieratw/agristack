@@ -12,7 +12,6 @@ import 'package:agristack/domain/entities/entities.dart';
 
 import 'package:agristack/domain/repositories/fields_repository.dart';
 
-
 List<T> _listOrEmpty<T>(Result<List<T>> res) =>
     res.isOk && res.data != null ? res.data! : <T>[];
 
@@ -117,10 +116,7 @@ class ListDiagnosisUseCaseImpl implements ListDiagnosisUseCase {
       res = await _diag.listByDateRange(filter.from!, filter.to!);
     } else {
       // „Globalna” historia – szeroki zakres
-      res = await _diag.listByDateRange(
-        DateTime(2000, 1, 1),
-        DateTime.now(),
-      );
+      res = await _diag.listByDateRange(DateTime(2000, 1, 1), DateTime.now());
     }
 
     var entries = _listOrEmpty<DiagnosisEntryEntity>(res);
@@ -132,8 +128,7 @@ class ListDiagnosisUseCaseImpl implements ListDiagnosisUseCase {
           .toList();
     }
     if (filter.to != null) {
-      entries =
-          entries.where((e) => !e.timestamp.isAfter(filter.to!)).toList();
+      entries = entries.where((e) => !e.timestamp.isAfter(filter.to!)).toList();
     }
 
     // Na razie bez cropa – nie ma go w encji, a modelId można później zmapować z DictionaryRepository.
@@ -171,10 +166,7 @@ class GetMapPointsUseCaseImpl implements GetMapPointsUseCase {
     if (filter.from != null && filter.to != null) {
       res = await _diag.listByDateRange(filter.from!, filter.to!);
     } else {
-      res = await _diag.listByDateRange(
-        DateTime(2000, 1, 1),
-        DateTime.now(),
-      );
+      res = await _diag.listByDateRange(DateTime(2000, 1, 1), DateTime.now());
     }
 
     var entries = _listOrEmpty<DiagnosisEntryEntity>(res);
@@ -185,8 +177,7 @@ class GetMapPointsUseCaseImpl implements GetMapPointsUseCase {
           .toList();
     }
 
-    final withCoords =
-        entries.where((e) => e.lat != null && e.lng != null);
+    final withCoords = entries.where((e) => e.lat != null && e.lng != null);
 
     return withCoords
         .map(
@@ -263,7 +254,7 @@ class SaveDiagnosisUseCaseImpl implements SaveDiagnosisUseCase {
   SaveDiagnosisUseCaseImpl(this._diag, this._dict, this._inf);
 
   @override
-  Future<void> call(SaveDiagnosisParams p) async {
+  Future<DiagnosisEntryEntity> call(SaveDiagnosisParams p) async {
     final cfg = _dict.getModelConfig(p.crop);
     if (cfg == null) {
       throw StateError('Brak modelu dla crop=${p.crop}');
@@ -272,6 +263,7 @@ class SaveDiagnosisUseCaseImpl implements SaveDiagnosisUseCase {
       throw StateError('models.json: brak classNames dla ${cfg.modelId}');
     }
 
+    // 1. Inferencja
     final res = await _inf.infer(
       imagePath: p.imagePath,
       assetPath: cfg.assetPath,
@@ -279,13 +271,18 @@ class SaveDiagnosisUseCaseImpl implements SaveDiagnosisUseCase {
       numClasses: cfg.classNames.length,
     );
 
+    // 2. Surowa etykieta z modelu
     final raw = res.rawLabel ?? cfg.classNames[res.classIndex];
+
+    // 3. mapowanie na canonicalId + label PL
     final canonical = _dict.mapRawLabelToId(raw, crop: p.crop) ?? raw;
     final displayPl = _dict.getDiseaseDisplay(canonical) ?? canonical;
 
+    final now = DateTime.now();
+
     final entity = DiagnosisEntryEntity(
       id: 0,
-      timestamp: DateTime.now(),
+      timestamp: now,
       imagePath: p.imagePath,
       fieldSeasonId: p.fieldSeasonId,
       lat: p.lat,
@@ -297,12 +294,47 @@ class SaveDiagnosisUseCaseImpl implements SaveDiagnosisUseCase {
       confidence: res.confidence,
       recommendationKey: canonical,
       notes: null,
-      createdAt: DateTime.now(),
+      createdAt: now,
     );
 
     final r = await _diag.save(entity);
     if (!r.isOk) {
       throw StateError('Nie udało się zapisać diagnozy: ${r.error}');
     }
+
+    return entity;
   }
+}
+
+class AgristackUsecasesImpl implements AgristackUsecases {
+  @override
+  final SaveDiagnosisUseCase saveDiagnosis;
+
+  @override
+  final GetEnhancedRecommendationUseCase enhancedRecommendation;
+
+  @override
+  final GetFieldsOverviewUseCase fieldsOverview;
+
+  @override
+  final GetFieldDetailsUseCase fieldDetails;
+
+  @override
+  final ListDiagnosisUseCase listDiagnosis;
+
+  @override
+  final GetMapPointsUseCase mapPoints;
+
+  @override
+  final PreviewDiagnosisUseCase previewDiagnosis;
+
+  AgristackUsecasesImpl({
+    required this.saveDiagnosis,
+    required this.enhancedRecommendation,
+    required this.fieldsOverview,
+    required this.fieldDetails,
+    required this.listDiagnosis,
+    required this.mapPoints,
+    required this.previewDiagnosis,
+  });
 }
