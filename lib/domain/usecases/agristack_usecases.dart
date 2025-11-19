@@ -1,6 +1,7 @@
 // lib/domain/usecases/agristack_usecases.dart
 import 'package:agristack/domain/entities/entities.dart';
 import 'package:agristack/domain/value/result.dart';
+import 'package:agristack/data/models/advice_dtos.dart';
 
 /// =======================
 ///   PARAMS / FILTRY
@@ -30,6 +31,11 @@ class GetEnhancedParams {
   final List<String> kb; // kontekst lokalny (opcjonalny)
   final String locale; // 'pl' / 'en'
 
+  // New fields for Advice API
+  final String seasonContext;
+  final int? timeSinceLastSprayDays;
+  final String situationDescription;
+
   GetEnhancedParams({
     required this.crop,
     required this.canonicalDiseaseId,
@@ -37,6 +43,9 @@ class GetEnhancedParams {
     this.userQuery,
     this.kb = const [],
     this.locale = 'pl',
+    required this.seasonContext,
+    this.timeSinceLastSprayDays,
+    required this.situationDescription,
   });
 }
 
@@ -181,8 +190,7 @@ abstract class GetMapPointsUseCase {
 }
 
 abstract class GetEnhancedRecommendationUseCase {
-  Future<Result<String>> call(GetEnhancedParams p);
-  Stream<String> stream(GetEnhancedParams p);
+  Future<Result<AdviceResponse>> call(GetEnhancedParams p);
 }
 
 abstract class SaveDiagnosisUseCase {

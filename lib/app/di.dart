@@ -21,13 +21,13 @@ import '../data/repositories/json_dictionary_repository.dart';
 import '../domain/services/inference_service.dart';
 import '../data/services/mc_inference_service.dart';
 
-// ====== SECRETS (API key do Gemini) ======
+// ====== SECRETS (API key do Gemini - opcjonalne, jeśli używamy Advice API to może niepotrzebne, ale zostawiam serwis) ======
 import '../domain/services/secrets_service.dart';
 import '../data/services/secure_secrets_service.dart';
 
-// ====== LLM (Gemini) ======
-import '../domain/services/llm_service.dart';
-import '../data/services/gemini_llm_service.dart';
+// ====== ADVICE API ======
+import 'package:agristack/domain/services/advice_service.dart';
+import 'package:agristack/data/services/http_advice_service.dart';
 
 // ====== USECASES (interfejsy + implementacje) ======
 import '../domain/usecases/agristack_usecases.dart';
@@ -63,7 +63,7 @@ final fieldsRepoProvider = FutureProvider<FieldsRepository>((ref) async {
 
 final fieldsListProvider = FutureProvider<List<FieldEntity>>((ref) async {
   final repo = await ref.watch(fieldsRepoProvider.future);
-  final res = await repo.getAll(); // <-- tu jest zmiana
+  final res = await repo.getAll();
 
   if (!res.isOk || res.data == null) {
     throw Exception(res.error?.message ?? 'Nie udało się odczytać pól');
@@ -114,20 +114,25 @@ final inferenceServiceProvider = Provider<InferenceService>(
 );
 
 /// =======================
-///   SECRETS + LLM
+///   SECRETS
 /// =======================
 
 final secretsServiceProvider = Provider<SecretsService>(
   (ref) => SecureSecretsService(),
 );
 
+// (Opcjonalnie) Provider klucza Gemini - jeśli potrzebny gdzie indziej, zostawiam.
+// Jeśli nie, można usunąć. InfoPage go używał, ale usunąłem.
 final geminiApiKeyProvider = FutureProvider<String?>((ref) async {
   return ref.read(secretsServiceProvider).getGeminiApiKey();
 });
 
-final llmServiceProvider = FutureProvider<LlmService>((ref) async {
-  final key = await ref.watch(geminiApiKeyProvider.future) ?? '';
-  return GeminiLlmService(apiKey: key);
+/// =======================
+///   ADVICE SERVICE
+/// =======================
+
+final adviceServiceProvider = Provider<AdviceService>((ref) {
+  return HttpAdviceService();
 });
 
 /// =======================
@@ -167,15 +172,15 @@ final getMapPointsUseCaseProvider = FutureProvider<GetMapPointsUseCase>((
 });
 
 /// =======================
-///   USECASE – LLM
+///   USECASE – LLM / ADVICE
 /// =======================
 
 final getEnhancedRecommendationUseCaseProvider =
     FutureProvider<GetEnhancedRecommendationUseCase>((ref) async {
       await ref.watch(dictionaryInitializerProvider.future);
-      final llm = await ref.watch(llmServiceProvider.future);
-      final dict = ref.read(dictionaryRepoProvider);
-      return GetEnhancedRecommendationUseCaseImpl(llm, dict);
+      final adviceService = ref.read(adviceServiceProvider);
+      // final dict = ref.read(dictionaryRepoProvider); // Unused now
+      return GetEnhancedRecommendationUseCaseImpl(adviceService);
     });
 
 /// =======================

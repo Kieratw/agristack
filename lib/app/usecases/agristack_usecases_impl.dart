@@ -2,9 +2,9 @@
 import 'package:agristack/domain/usecases/agristack_usecases.dart';
 import 'package:agristack/domain/value/result.dart';
 
-import 'package:agristack/domain/services/llm_service.dart';
+import 'package:agristack/domain/services/advice_service.dart';
+import 'package:agristack/data/models/advice_dtos.dart';
 import 'package:agristack/domain/repositories/dictionary_repository.dart';
-import 'package:agristack/app/prompt/prompt_builder.dart';
 
 import 'package:agristack/domain/services/inference_service.dart';
 import 'package:agristack/domain/repositories/diagnosis_repository.dart';
@@ -200,45 +200,29 @@ class GetMapPointsUseCaseImpl implements GetMapPointsUseCase {
 //   GetEnhancedRecommendationUseCaseImpl (LLM)
 // =========================
 
+// =========================
+//   GetEnhancedRecommendationUseCaseImpl (Advice API)
+// =========================
+
 class GetEnhancedRecommendationUseCaseImpl
     implements GetEnhancedRecommendationUseCase {
-  final LlmService _llm;
-  final DictionaryRepository _dict;
+  final AdviceService _adviceService;
 
-  GetEnhancedRecommendationUseCaseImpl(this._llm, this._dict);
-
-  @override
-  Future<Result<String>> call(GetEnhancedParams p) async {
-    final display =
-        _dict.getDiseaseDisplay(p.canonicalDiseaseId) ?? p.canonicalDiseaseId;
-
-    final prompt = ExpertPromptBuilder(locale: p.locale).build(
-      crop: p.crop,
-      canonicalDiseaseId: p.canonicalDiseaseId,
-      diseaseDisplayPl: display,
-      bbch: p.bbch,
-      userQuery: p.userQuery,
-      kb: p.kb,
-    );
-
-    return _llm.generateContent(prompt);
-  }
+  GetEnhancedRecommendationUseCaseImpl(this._adviceService);
 
   @override
-  Stream<String> stream(GetEnhancedParams p) {
-    final display =
-        _dict.getDiseaseDisplay(p.canonicalDiseaseId) ?? p.canonicalDiseaseId;
-
-    final prompt = ExpertPromptBuilder(locale: p.locale).build(
+  Future<Result<AdviceResponse>> call(GetEnhancedParams p) async {
+    // Map domain params to DTO
+    final request = AdviceRequest(
       crop: p.crop,
-      canonicalDiseaseId: p.canonicalDiseaseId,
-      diseaseDisplayPl: display,
-      bbch: p.bbch,
-      userQuery: p.userQuery,
-      kb: p.kb,
+      status: p.canonicalDiseaseId, // Use canonical ID as status
+      bbch: p.bbch ?? '',
+      seasonContext: p.seasonContext,
+      timeSinceLastSprayDays: p.timeSinceLastSprayDays,
+      situationDescription: p.situationDescription,
     );
 
-    return _llm.streamContent(prompt);
+    return _adviceService.getAdvice(request);
   }
 }
 

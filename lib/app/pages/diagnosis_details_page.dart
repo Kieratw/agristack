@@ -8,25 +8,25 @@ import 'package:agristack/domain/entities/entities.dart';
 class DiagnosisDetailsPage extends ConsumerStatefulWidget {
   final DiagnosisEntryEntity entry;
 
-  const DiagnosisDetailsPage({
-    super.key,
-    required this.entry,
-  });
+  const DiagnosisDetailsPage({super.key, required this.entry});
 
   @override
   ConsumerState<DiagnosisDetailsPage> createState() =>
       _DiagnosisDetailsPageState();
 }
 
-class _DiagnosisDetailsPageState
-    extends ConsumerState<DiagnosisDetailsPage> {
-  final _questionController = TextEditingController();
+class _DiagnosisDetailsPageState extends ConsumerState<DiagnosisDetailsPage> {
   final _bbchController = TextEditingController();
+  final _seasonContextController = TextEditingController();
+  final _timeSinceLastSprayController = TextEditingController();
+  final _situationDescriptionController = TextEditingController();
 
   @override
   void dispose() {
-    _questionController.dispose();
     _bbchController.dispose();
+    _seasonContextController.dispose();
+    _timeSinceLastSprayController.dispose();
+    _situationDescriptionController.dispose();
     super.dispose();
   }
 
@@ -37,9 +37,7 @@ class _DiagnosisDetailsPageState
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Szczegóły diagnozy'),
-      ),
+      appBar: AppBar(title: const Text('Szczegóły diagnozy')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -70,10 +68,7 @@ class _DiagnosisDetailsPageState
             ),
 
           const SizedBox(height: 24),
-          Text(
-            'Zapytaj eksperta AI',
-            style: theme.textTheme.titleMedium,
-          ),
+          Text('Zapytaj eksperta AI', style: theme.textTheme.titleMedium),
           const SizedBox(height: 8),
 
           TextField(
@@ -85,10 +80,27 @@ class _DiagnosisDetailsPageState
           ),
           const SizedBox(height: 8),
           TextField(
-            controller: _questionController,
+            controller: _seasonContextController,
             decoration: const InputDecoration(
-              labelText: 'Pytanie do eksperta',
-              hintText: 'np. Jakie zabiegi są zalecane na tym etapie?',
+              labelText: 'Termin zabiegu / Kontekst sezonu',
+              hintText: 'np. T1, T2, jesień, wiosna',
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _timeSinceLastSprayController,
+            decoration: const InputDecoration(
+              labelText: 'Dni od ostatniego oprysku',
+              hintText: 'np. 14',
+            ),
+            keyboardType: TextInputType.number,
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _situationDescriptionController,
+            decoration: const InputDecoration(
+              labelText: 'Opis sytuacji / Dodatkowe uwagi',
+              hintText: 'np. Wysoka wilgotność, planowany deszcz...',
             ),
             maxLines: 3,
           ),
@@ -113,21 +125,80 @@ class _DiagnosisDetailsPageState
           const SizedBox(height: 16),
 
           llmState.when(
-            data: (answer) {
-              if (answer == null || answer.isEmpty) {
+            data: (response) {
+              if (response == null) {
                 return const Text(
-                  'Brak wygenerowanej odpowiedzi.\n'
-                  'Wpisz pytanie i kliknij „Generuj odpowiedź”.',
+                  'Wypełnij formularz i kliknij „Generuj odpowiedź”, aby uzyskać poradę eksperta.',
                   style: TextStyle(color: Colors.grey),
                 );
               }
-              return Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Text(answer),
-                ),
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Podsumowanie',
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(response.summary),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (response.products.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      'Rekomendowane produkty:',
+                      style: theme.textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 4),
+                    ...response.products.map(
+                      (p) => Card(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: ListTile(
+                          title: Text(
+                            p.name,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [Text('Dawka: ${p.dose}')],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (response.sources.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Text('Źródła:', style: theme.textTheme.titleSmall),
+                    ...response.sources.map(
+                      (s) => Padding(
+                        padding: const EdgeInsets.only(left: 8, bottom: 2),
+                        child: Text('• $s', style: theme.textTheme.bodySmall),
+                      ),
+                    ),
+                  ],
+                  if (response.disclaimer != null) ...[
+                    const SizedBox(height: 16),
+                    Text(
+                      'Uwaga: ${response.disclaimer}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ],
+                ],
               );
             },
+
             loading: () => const Center(
               child: Padding(
                 padding: EdgeInsets.all(8),
@@ -147,23 +218,27 @@ class _DiagnosisDetailsPageState
   Future<void> _runLlm(BuildContext context) async {
     final entry = widget.entry;
     final bbch = _bbchController.text;
-    final question = _questionController.text.isEmpty
-        ? 'Podaj zwięzłą rekomendację dla tej diagnozy.'
-        : _questionController.text;
+    final seasonContext = _seasonContextController.text;
+    final timeSinceLastSpray = int.tryParse(_timeSinceLastSprayController.text);
+    final situationDescription = _situationDescriptionController.text;
 
     try {
       await ref
           .read(diagnosisDetailsControllerProvider.notifier)
           .askExpert(
             entry,
-            bbch: bbch,
-            question: question,
+            bbch: bbch.isEmpty ? null : bbch,
+            seasonContext: seasonContext.isEmpty ? null : seasonContext,
+            timeSinceLastSprayDays: timeSinceLastSpray,
+            situationDescription: situationDescription.isEmpty
+                ? null
+                : situationDescription,
           );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Błąd: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Błąd: $e')));
     }
   }
 }
@@ -180,14 +255,8 @@ class _ImageHeader extends StatelessWidget {
       child: SizedBox(
         height: 220,
         child: path.isNotEmpty && File(path).existsSync()
-            ? Image.file(
-                File(path),
-                fit: BoxFit.cover,
-                width: double.infinity,
-              )
-            : const Center(
-                child: Text('Brak zdjęcia'),
-              ),
+            ? Image.file(File(path), fit: BoxFit.cover, width: double.infinity)
+            : const Center(child: Text('Brak zdjęcia')),
       ),
     );
   }

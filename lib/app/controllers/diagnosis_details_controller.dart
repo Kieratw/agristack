@@ -4,13 +4,16 @@ import 'package:agristack/domain/entities/entities.dart';
 import 'package:agristack/domain/usecases/agristack_usecases.dart';
 import 'package:agristack/domain/value/result.dart';
 
-final diagnosisDetailsControllerProvider = StateNotifierProvider.autoDispose<
-    DiagnosisDetailsController, AsyncValue<String?>>(
-  (ref) => DiagnosisDetailsController(ref),
-);
+import 'package:agristack/data/models/advice_dtos.dart';
+
+final diagnosisDetailsControllerProvider =
+    StateNotifierProvider.autoDispose<
+      DiagnosisDetailsController,
+      AsyncValue<AdviceResponse?>
+    >((ref) => DiagnosisDetailsController(ref));
 
 class DiagnosisDetailsController
-    extends StateNotifier<AsyncValue<String?>> {
+    extends StateNotifier<AsyncValue<AdviceResponse?>> {
   final Ref ref;
   DiagnosisDetailsController(this.ref) : super(const AsyncValue.data(null));
 
@@ -28,11 +31,15 @@ class DiagnosisDetailsController
     DiagnosisEntryEntity entry, {
     String? bbch,
     String? question,
+    String? seasonContext,
+    int? timeSinceLastSprayDays,
+    String? situationDescription,
   }) async {
     state = const AsyncValue.loading();
     try {
-      final uc =
-          await ref.read(getEnhancedRecommendationUseCaseProvider.future);
+      final uc = await ref.read(
+        getEnhancedRecommendationUseCaseProvider.future,
+      );
 
       final crop = _inferCropFromModelId(entry.modelId);
 
@@ -45,6 +52,9 @@ class DiagnosisDetailsController
             : null,
         kb: const [],
         locale: 'pl',
+        seasonContext: seasonContext ?? 'Brak danych o sezonie',
+        timeSinceLastSprayDays: timeSinceLastSprayDays,
+        situationDescription: situationDescription ?? 'Brak dodatkowego opisu',
       );
 
       final res = await uc.call(params);
@@ -52,7 +62,8 @@ class DiagnosisDetailsController
         state = AsyncValue.data(res.data);
       } else {
         state = AsyncValue.error(
-          res.error ?? const AppError('llm.unknown', 'Brak odpowiedzi z modelu'),
+          res.error ??
+              const AppError('advice.unknown', 'Brak odpowiedzi z serwera'),
           StackTrace.current,
         );
       }
