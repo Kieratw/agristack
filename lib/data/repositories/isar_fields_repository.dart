@@ -11,10 +11,21 @@ class IsarFieldsRepository implements FieldsRepository {
   IsarFieldsRepository(this.isar);
 
   @override
-  Future<Result<FieldEntity>> add({required String name, double? lat, double? lng, String? notes}) async {
+  Future<Result<FieldEntity>> add({
+    required String name,
+    double? lat,
+    double? lng,
+    String? notes,
+  }) async {
     try {
-      final exists = await isar.fields.filter().nameEqualTo(name, caseSensitive: false).isNotEmpty();
-      if (exists) return const Result.err(AppError('field.duplicate', 'Pole o tej nazwie już istnieje.'));
+      final exists = await isar.fields
+          .filter()
+          .nameEqualTo(name, caseSensitive: false)
+          .isNotEmpty();
+      if (exists)
+        return const Result.err(
+          AppError('field.duplicate', 'Pole o tej nazwie już istnieje.'),
+        );
       final f = Field()
         ..name = name
         ..centerLat = lat
@@ -37,11 +48,19 @@ class IsarFieldsRepository implements FieldsRepository {
         if (field == null) return;
 
         // Kaskada: sezony i ich diagnozy
-        final seasons = await isar.fieldSeasons.filter().field((q) => q.idEqualTo(fieldId)).findAll();
+        final seasons = await isar.fieldSeasons
+            .filter()
+            .field((q) => q.idEqualTo(fieldId))
+            .findAll();
         for (final s in seasons) {
-          final diags = await isar.diagnosisEntrys.filter().fieldSeason((q) => q.idEqualTo(s.id)).findAll();
+          final diags = await isar.diagnosisEntrys
+              .filter()
+              .fieldSeason((q) => q.idEqualTo(s.id))
+              .findAll();
           if (diags.isNotEmpty) {
-            await isar.diagnosisEntrys.deleteAll(diags.map((d) => d.id).toList());
+            await isar.diagnosisEntrys.deleteAll(
+              diags.map((d) => d.id).toList(),
+            );
           }
         }
         if (seasons.isNotEmpty) {
@@ -68,7 +87,11 @@ class IsarFieldsRepository implements FieldsRepository {
   @override
   Future<Result<List<FieldSeasonEntity>>> getSeasons(int fieldId) async {
     try {
-      final list = await isar.fieldSeasons.filter().field((q) => q.idEqualTo(fieldId)).sortByYear().findAll();
+      final list = await isar.fieldSeasons
+          .filter()
+          .field((q) => q.idEqualTo(fieldId))
+          .sortByYear()
+          .findAll();
       return Result.ok(list.map((e) => e.toEntity()).toList());
     } catch (e) {
       return Result.err(AppError('db.read_failed', e.toString()));
@@ -76,17 +99,27 @@ class IsarFieldsRepository implements FieldsRepository {
   }
 
   @override
-  Future<Result<FieldSeasonEntity>> addSeason({required int fieldId, required int year, required String crop}) async {
+  Future<Result<FieldSeasonEntity>> addSeason({
+    required int fieldId,
+    required int year,
+    required String crop,
+  }) async {
     try {
       final field = await isar.fields.get(fieldId);
-      if (field == null) return const Result.err(AppError('field.not_found', 'Pole nie istnieje.'));
+      if (field == null)
+        return const Result.err(
+          AppError('field.not_found', 'Pole nie istnieje.'),
+        );
 
       final dup = await isar.fieldSeasons
           .filter()
           .field((q) => q.idEqualTo(fieldId))
           .yearEqualTo(year)
           .isNotEmpty();
-      if (dup) return const Result.err(AppError('season.duplicate', 'Sezon dla tego roku już istnieje.'));
+      if (dup)
+        return const Result.err(
+          AppError('season.duplicate', 'Sezon dla tego roku już istnieje.'),
+        );
 
       final s = FieldSeason()
         ..year = year
@@ -131,12 +164,33 @@ class IsarFieldsRepository implements FieldsRepository {
           ..centerLat = field.centerLat
           ..centerLng = field.centerLng
           ..notes = field.notes
-          ..updatedAt = DateTime.now();
+          ..updatedAt = DateTime.now()
+          ..polygonPoints = field.polygon
+              ?.map((p) => '${p.lat},${p.lng}')
+              .toList()
+          ..area = field.area;
         await isar.fields.put(f);
       });
       return const Result.ok(null);
     } catch (e) {
       return Result.err(AppError('db.update_failed', e.toString()));
     }
+  }
+
+  @override
+  Future<Result<FieldEntity?>> get(int fieldId) async {
+    try {
+      final f = await isar.fields.get(fieldId);
+      return Result.ok(f?.toEntity());
+    } catch (e) {
+      return Result.err(AppError('db.read_failed', e.toString()));
+    }
+  }
+
+  Stream<List<FieldEntity>> watchAll() async* {
+    yield* isar.fields
+        .where()
+        .watch(fireImmediately: true)
+        .map((fields) => fields.map((f) => f.toEntity()).toList());
   }
 }

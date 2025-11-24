@@ -43,7 +43,8 @@ final routerProvider = Provider<GoRouter>((ref) {
               final fieldId = fieldIdStr != null
                   ? int.tryParse(fieldIdStr)
                   : null;
-              return MapPage(fieldId: fieldId);
+              final isPicker = state.uri.queryParameters['isPicker'] == 'true';
+              return MapPage(fieldId: fieldId, isPicker: isPicker);
             },
           ),
           GoRoute(

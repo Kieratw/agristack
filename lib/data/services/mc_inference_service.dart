@@ -12,21 +12,17 @@ class MethodChannelInferenceService implements InferenceService {
     required int inputSize,
     required int numClasses,
   }) async {
-    final raw = await _channel.invokeMethod<List<dynamic>>(
-      'runModel',
-      {
-        'imagePath': imagePath,
-        'assetPath': assetPath,
-        'inputSize': inputSize,
-      },
-    );
+    final raw = await _channel.invokeMethod<List<dynamic>>('runModel', {
+      'imagePath': imagePath,
+      'assetPath': assetPath,
+      'inputSize': inputSize,
+    });
 
     if (raw == null || raw.isEmpty) {
       throw StateError('Brak danych z PyTorcha (runModel zwrócił null/empty)');
     }
 
     if (raw.length < numClasses) {
-      // coś jest bardzo nie tak, wolę zabić appkę niż udawać że jest ok
       throw StateError(
         'PyTorch zwrócił ${raw.length} wyników, ale numClasses=$numClasses',
       );
@@ -46,10 +42,6 @@ class MethodChannelInferenceService implements InferenceService {
       }
     }
 
-    return InferenceResult(
-      bestIdx,
-      bestVal,
-      rawLabel: null,
-    );
+    return InferenceResult(bestIdx, bestVal, rawLabel: null);
   }
 }

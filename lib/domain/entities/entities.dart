@@ -6,6 +6,9 @@ class FieldEntity {
   final String? notes;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final List<GeoPoint>? polygon;
+  final double? area;
+
   FieldEntity({
     required this.id,
     required this.name,
@@ -14,7 +17,15 @@ class FieldEntity {
     this.notes,
     required this.createdAt,
     required this.updatedAt,
+    this.polygon,
+    this.area,
   });
+}
+
+class GeoPoint {
+  final double lat;
+  final double lng;
+  const GeoPoint(this.lat, this.lng);
 }
 
 class FieldSeasonEntity {

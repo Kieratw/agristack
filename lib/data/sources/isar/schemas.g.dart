@@ -17,33 +17,43 @@ const FieldSchema = CollectionSchema(
   name: r'Field',
   id: 256898425088394984,
   properties: {
-    r'centerLat': PropertySchema(
+    r'area': PropertySchema(
       id: 0,
+      name: r'area',
+      type: IsarType.double,
+    ),
+    r'centerLat': PropertySchema(
+      id: 1,
       name: r'centerLat',
       type: IsarType.double,
     ),
     r'centerLng': PropertySchema(
-      id: 1,
+      id: 2,
       name: r'centerLng',
       type: IsarType.double,
     ),
     r'createdAt': PropertySchema(
-      id: 2,
+      id: 3,
       name: r'createdAt',
       type: IsarType.dateTime,
     ),
     r'name': PropertySchema(
-      id: 3,
+      id: 4,
       name: r'name',
       type: IsarType.string,
     ),
     r'notes': PropertySchema(
-      id: 4,
+      id: 5,
       name: r'notes',
       type: IsarType.string,
     ),
+    r'polygonPoints': PropertySchema(
+      id: 6,
+      name: r'polygonPoints',
+      type: IsarType.stringList,
+    ),
     r'updatedAt': PropertySchema(
-      id: 5,
+      id: 7,
       name: r'updatedAt',
       type: IsarType.dateTime,
     )
@@ -123,6 +133,18 @@ int _fieldEstimateSize(
       bytesCount += 3 + value.length * 3;
     }
   }
+  {
+    final list = object.polygonPoints;
+    if (list != null) {
+      bytesCount += 3 + list.length * 3;
+      {
+        for (var i = 0; i < list.length; i++) {
+          final value = list[i];
+          bytesCount += value.length * 3;
+        }
+      }
+    }
+  }
   return bytesCount;
 }
 
@@ -132,12 +154,14 @@ void _fieldSerialize(
   List<int> offsets,
   Map<Type, List<int>> allOffsets,
 ) {
-  writer.writeDouble(offsets[0], object.centerLat);
-  writer.writeDouble(offsets[1], object.centerLng);
-  writer.writeDateTime(offsets[2], object.createdAt);
-  writer.writeString(offsets[3], object.name);
-  writer.writeString(offsets[4], object.notes);
-  writer.writeDateTime(offsets[5], object.updatedAt);
+  writer.writeDouble(offsets[0], object.area);
+  writer.writeDouble(offsets[1], object.centerLat);
+  writer.writeDouble(offsets[2], object.centerLng);
+  writer.writeDateTime(offsets[3], object.createdAt);
+  writer.writeString(offsets[4], object.name);
+  writer.writeString(offsets[5], object.notes);
+  writer.writeStringList(offsets[6], object.polygonPoints);
+  writer.writeDateTime(offsets[7], object.updatedAt);
 }
 
 Field _fieldDeserialize(
@@ -147,13 +171,15 @@ Field _fieldDeserialize(
   Map<Type, List<int>> allOffsets,
 ) {
   final object = Field();
-  object.centerLat = reader.readDoubleOrNull(offsets[0]);
-  object.centerLng = reader.readDoubleOrNull(offsets[1]);
-  object.createdAt = reader.readDateTime(offsets[2]);
+  object.area = reader.readDoubleOrNull(offsets[0]);
+  object.centerLat = reader.readDoubleOrNull(offsets[1]);
+  object.centerLng = reader.readDoubleOrNull(offsets[2]);
+  object.createdAt = reader.readDateTime(offsets[3]);
   object.id = id;
-  object.name = reader.readString(offsets[3]);
-  object.notes = reader.readStringOrNull(offsets[4]);
-  object.updatedAt = reader.readDateTime(offsets[5]);
+  object.name = reader.readString(offsets[4]);
+  object.notes = reader.readStringOrNull(offsets[5]);
+  object.polygonPoints = reader.readStringList(offsets[6]);
+  object.updatedAt = reader.readDateTime(offsets[7]);
   return object;
 }
 
@@ -169,12 +195,16 @@ P _fieldDeserializeProp<P>(
     case 1:
       return (reader.readDoubleOrNull(offset)) as P;
     case 2:
-      return (reader.readDateTime(offset)) as P;
+      return (reader.readDoubleOrNull(offset)) as P;
     case 3:
-      return (reader.readString(offset)) as P;
+      return (reader.readDateTime(offset)) as P;
     case 4:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readString(offset)) as P;
     case 5:
+      return (reader.readStringOrNull(offset)) as P;
+    case 6:
+      return (reader.readStringList(offset)) as P;
+    case 7:
       return (reader.readDateTime(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -604,6 +634,84 @@ extension FieldQueryWhere on QueryBuilder<Field, Field, QWhereClause> {
 }
 
 extension FieldQueryFilter on QueryBuilder<Field, Field, QFilterCondition> {
+  QueryBuilder<Field, Field, QAfterFilterCondition> areaIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'area',
+      ));
+    });
+  }
+
+  QueryBuilder<Field, Field, QAfterFilterCondition> areaIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'area',
+      ));
+    });
+  }
+
+  QueryBuilder<Field, Field, QAfterFilterCondition> areaEqualTo(
+    double? value, {
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'area',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<Field, Field, QAfterFilterCondition> areaGreaterThan(
+    double? value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'area',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<Field, Field, QAfterFilterCondition> areaLessThan(
+    double? value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'area',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<Field, Field, QAfterFilterCondition> areaBetween(
+    double? lower,
+    double? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'area',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
   QueryBuilder<Field, Field, QAfterFilterCondition> centerLatIsNull() {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(const FilterCondition.isNull(
@@ -1137,6 +1245,242 @@ extension FieldQueryFilter on QueryBuilder<Field, Field, QFilterCondition> {
     });
   }
 
+  QueryBuilder<Field, Field, QAfterFilterCondition> polygonPointsIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'polygonPoints',
+      ));
+    });
+  }
+
+  QueryBuilder<Field, Field, QAfterFilterCondition> polygonPointsIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'polygonPoints',
+      ));
+    });
+  }
+
+  QueryBuilder<Field, Field, QAfterFilterCondition> polygonPointsElementEqualTo(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'polygonPoints',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Field, Field, QAfterFilterCondition>
+      polygonPointsElementGreaterThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'polygonPoints',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Field, Field, QAfterFilterCondition>
+      polygonPointsElementLessThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'polygonPoints',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Field, Field, QAfterFilterCondition> polygonPointsElementBetween(
+    String lower,
+    String upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'polygonPoints',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Field, Field, QAfterFilterCondition>
+      polygonPointsElementStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'polygonPoints',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Field, Field, QAfterFilterCondition>
+      polygonPointsElementEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'polygonPoints',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Field, Field, QAfterFilterCondition>
+      polygonPointsElementContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'polygonPoints',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Field, Field, QAfterFilterCondition> polygonPointsElementMatches(
+      String pattern,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'polygonPoints',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Field, Field, QAfterFilterCondition>
+      polygonPointsElementIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'polygonPoints',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<Field, Field, QAfterFilterCondition>
+      polygonPointsElementIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'polygonPoints',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<Field, Field, QAfterFilterCondition> polygonPointsLengthEqualTo(
+      int length) {
+    return QueryBuilder.apply(this, (query) {
+      return query.listLength(
+        r'polygonPoints',
+        length,
+        true,
+        length,
+        true,
+      );
+    });
+  }
+
+  QueryBuilder<Field, Field, QAfterFilterCondition> polygonPointsIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.listLength(
+        r'polygonPoints',
+        0,
+        true,
+        0,
+        true,
+      );
+    });
+  }
+
+  QueryBuilder<Field, Field, QAfterFilterCondition> polygonPointsIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.listLength(
+        r'polygonPoints',
+        0,
+        false,
+        999999,
+        true,
+      );
+    });
+  }
+
+  QueryBuilder<Field, Field, QAfterFilterCondition> polygonPointsLengthLessThan(
+    int length, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.listLength(
+        r'polygonPoints',
+        0,
+        true,
+        length,
+        include,
+      );
+    });
+  }
+
+  QueryBuilder<Field, Field, QAfterFilterCondition>
+      polygonPointsLengthGreaterThan(
+    int length, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.listLength(
+        r'polygonPoints',
+        length,
+        include,
+        999999,
+        true,
+      );
+    });
+  }
+
+  QueryBuilder<Field, Field, QAfterFilterCondition> polygonPointsLengthBetween(
+    int lower,
+    int upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.listLength(
+        r'polygonPoints',
+        lower,
+        includeLower,
+        upper,
+        includeUpper,
+      );
+    });
+  }
+
   QueryBuilder<Field, Field, QAfterFilterCondition> updatedAtEqualTo(
       DateTime value) {
     return QueryBuilder.apply(this, (query) {
@@ -1252,6 +1596,18 @@ extension FieldQueryLinks on QueryBuilder<Field, Field, QFilterCondition> {
 }
 
 extension FieldQuerySortBy on QueryBuilder<Field, Field, QSortBy> {
+  QueryBuilder<Field, Field, QAfterSortBy> sortByArea() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'area', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Field, Field, QAfterSortBy> sortByAreaDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'area', Sort.desc);
+    });
+  }
+
   QueryBuilder<Field, Field, QAfterSortBy> sortByCenterLat() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'centerLat', Sort.asc);
@@ -1326,6 +1682,18 @@ extension FieldQuerySortBy on QueryBuilder<Field, Field, QSortBy> {
 }
 
 extension FieldQuerySortThenBy on QueryBuilder<Field, Field, QSortThenBy> {
+  QueryBuilder<Field, Field, QAfterSortBy> thenByArea() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'area', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Field, Field, QAfterSortBy> thenByAreaDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'area', Sort.desc);
+    });
+  }
+
   QueryBuilder<Field, Field, QAfterSortBy> thenByCenterLat() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'centerLat', Sort.asc);
@@ -1412,6 +1780,12 @@ extension FieldQuerySortThenBy on QueryBuilder<Field, Field, QSortThenBy> {
 }
 
 extension FieldQueryWhereDistinct on QueryBuilder<Field, Field, QDistinct> {
+  QueryBuilder<Field, Field, QDistinct> distinctByArea() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'area');
+    });
+  }
+
   QueryBuilder<Field, Field, QDistinct> distinctByCenterLat() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'centerLat');
@@ -1444,6 +1818,12 @@ extension FieldQueryWhereDistinct on QueryBuilder<Field, Field, QDistinct> {
     });
   }
 
+  QueryBuilder<Field, Field, QDistinct> distinctByPolygonPoints() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'polygonPoints');
+    });
+  }
+
   QueryBuilder<Field, Field, QDistinct> distinctByUpdatedAt() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'updatedAt');
@@ -1455,6 +1835,12 @@ extension FieldQueryProperty on QueryBuilder<Field, Field, QQueryProperty> {
   QueryBuilder<Field, int, QQueryOperations> idProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'id');
+    });
+  }
+
+  QueryBuilder<Field, double?, QQueryOperations> areaProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'area');
     });
   }
 
@@ -1485,6 +1871,12 @@ extension FieldQueryProperty on QueryBuilder<Field, Field, QQueryProperty> {
   QueryBuilder<Field, String?, QQueryOperations> notesProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'notes');
+    });
+  }
+
+  QueryBuilder<Field, List<String>?, QQueryOperations> polygonPointsProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'polygonPoints');
     });
   }
 

@@ -26,6 +26,7 @@ class IsarDiagnosisRepository implements DiagnosisRepository {
         ..recommendationKey = draft.recommendationKey
         ..notes = draft.notes
         ..createdAt = DateTime.now();
+
       await isar.writeTxn(() async {
         if (draft.fieldSeasonId != null) {
           final s = await isar.fieldSeasons.get(draft.fieldSeasonId!);
@@ -45,43 +46,44 @@ class IsarDiagnosisRepository implements DiagnosisRepository {
     try {
       await isar.writeTxn(() async {
         final d = await isar.diagnosisEntrys.get(entry.id);
-        if (d == null) throw Exception('diagnosis.not_found');
+        if (d != null) {
+          d
+            ..timestamp = entry.timestamp
+            ..imagePath = entry.imagePath
+            ..lat = entry.lat
+            ..lng = entry.lng
+            ..modelId = entry.modelId
+            ..rawLabel = entry.rawLabel
+            ..canonicalDiseaseId = entry.canonicalDiseaseId
+            ..displayLabelPl = entry.displayLabelPl
+            ..confidence = entry.confidence
+            ..recommendationKey = entry.recommendationKey
+            ..notes = entry.notes;
 
-        // 1. Skopiuj właściwości
-        d
-          ..timestamp = entry.timestamp
-          ..imagePath = entry.imagePath
-          ..lat = entry.lat
-          ..lng = entry.lng
-          ..modelId = entry.modelId
-          ..rawLabel = entry.rawLabel
-          ..canonicalDiseaseId = entry.canonicalDiseaseId
-          ..displayLabelPl = entry.displayLabelPl
-          ..confidence = entry.confidence
-          ..recommendationKey = entry.recommendationKey
-          ..notes = entry.notes;
+          if (entry.fieldSeasonId != null) {
+            final s = await isar.fieldSeasons.get(entry.fieldSeasonId!);
+            if (s != null) d.fieldSeason.value = s;
+          }
 
-        await d.fieldSeason.load();
-
-        // 3. Teraz modyfikuj link (gdy jest już "obudzony")
-        if (entry.fieldSeasonId != null) {
-          // Przypisz nowy sezon (jeśli istnieje)
-          final s = await isar.fieldSeasons.get(entry.fieldSeasonId!);
-          d.fieldSeason.value = s;
-        } else {
-          // Ustaw na null (aby "uosierocić")
-          d.fieldSeason.value = null;
+          await isar.diagnosisEntrys.put(d);
+          await d.fieldSeason.save();
         }
-
-        // 4. Zapisz obiekt ORAZ link
-        await isar.diagnosisEntrys.put(d);
-        await d.fieldSeason.save();
-
-        // --- KONIEC POPRAWKI ---
       });
       return const Result.ok(null);
     } catch (e) {
       return Result.err(AppError('db.update_failed', e.toString()));
+    }
+  }
+
+  @override
+  Future<Result<void>> delete(int id) async {
+    try {
+      await isar.writeTxn(() async {
+        await isar.diagnosisEntrys.delete(id);
+      });
+      return const Result.ok(null);
+    } catch (e) {
+      return Result.err(AppError('db.delete_failed', e.toString()));
     }
   }
 
@@ -206,5 +208,65 @@ class IsarDiagnosisRepository implements DiagnosisRepository {
     } catch (e) {
       return Result.err(AppError('db.read_failed', e.toString()));
     }
+  }
+
+  @override
+  Stream<List<DiagnosisEntryEntity>> watchByField(
+    int fieldId, {
+    int? year,
+  }) async* {
+    QueryBuilder<DiagnosisEntry, DiagnosisEntry, QAfterFilterCondition> query;
+
+    if (year == null) {
+      // We need to find all seasons for this field first
+      // But Isar watchers on links are tricky.
+      // Instead, we can watch all diagnosis entries and filter manually or use a complex query if possible.
+      // A simpler approach for Isar 3: watch the query.
+      // But we need the season IDs first.
+      // If seasons change, this query might be outdated.
+      // For now, let's assume seasons don't change often enough to break this stream immediately,
+      // OR we can just watch all diagnoses and filter in Dart (less efficient but safer).
+
+      // Better approach:
+      // 1. Get seasons for field.
+      // 2. Watch diagnoses linked to those seasons.
+      // Note: If a new season is added, we won't see it.
+      // Ideally we should watch seasons too.
+
+      // Let's try to use the link filter if possible.
+      // Isar supports filtering by link.
+
+      query = isar.diagnosisEntrys.filter().fieldSeason(
+        (q) => q.field((f) => f.idEqualTo(fieldId)),
+      );
+    } else {
+      query = isar.diagnosisEntrys.filter().fieldSeason(
+        (q) => q.field((f) => f.idEqualTo(fieldId)).yearEqualTo(year),
+      );
+    }
+
+    yield* query.watch(fireImmediately: true).asyncMap((list) async {
+      for (final item in list) {
+        await item.fieldSeason.load();
+      }
+      return list.map((e) => e.toEntity()).toList();
+    });
+  }
+
+  @override
+  Stream<List<DiagnosisEntryEntity>> watchByDateRange(
+    DateTime from,
+    DateTime to,
+  ) async* {
+    yield* isar.diagnosisEntrys
+        .filter()
+        .timestampBetween(from, to, includeLower: true, includeUpper: true)
+        .watch(fireImmediately: true)
+        .asyncMap((list) async {
+          for (final item in list) {
+            await item.fieldSeason.load();
+          }
+          return list.map((e) => e.toEntity()).toList();
+        });
   }
 }

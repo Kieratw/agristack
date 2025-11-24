@@ -1,4 +1,8 @@
 import 'dart:io';
+import 'package:agristack/app/services/pdf_service.dart';
+import 'package:agristack/data/models/advice_dtos.dart';
+import 'package:printing/printing.dart';
+import 'package:agristack/app/di.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -37,7 +41,16 @@ class _DiagnosisDetailsPageState extends ConsumerState<DiagnosisDetailsPage> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Szczegóły diagnozy')),
+      appBar: AppBar(
+        title: const Text('Szczegóły diagnozy'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.share),
+            onPressed: () => _shareReport(context, ref),
+            tooltip: 'Udostępnij raport',
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -239,6 +252,90 @@ class _DiagnosisDetailsPageState extends ConsumerState<DiagnosisDetailsPage> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Błąd: $e')));
+    }
+  }
+
+  Future<void> _shareReport(BuildContext context, WidgetRef ref) async {
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final entry = widget.entry;
+      FieldEntity? field;
+      FieldSeasonEntity? season;
+
+      // Fetch field data if linked
+      if (entry.fieldSeasonId != null) {
+        final repo = await ref.read(fieldsRepoProvider.future);
+        final allFieldsRes = await repo.getAll();
+
+        if (allFieldsRes.isOk && allFieldsRes.data != null) {
+          // Iterate to find the matching season
+          for (final f in allFieldsRes.data!) {
+            final seasonsRes = await repo.getSeasons(f.id);
+            if (seasonsRes.isOk && seasonsRes.data != null) {
+              try {
+                final s = seasonsRes.data!.firstWhere(
+                  (s) => s.id == entry.fieldSeasonId,
+                );
+                field = f;
+                season = s;
+                break; // Found it
+              } catch (_) {
+                // Not in this field
+              }
+            }
+          }
+        }
+      }
+
+      // Get advice data
+      final llmState = ref.read(diagnosisDetailsControllerProvider);
+      String? advice;
+      List<AdviceProduct>? products;
+      if (llmState.hasValue && llmState.value != null) {
+        advice = llmState.value!.summary;
+        products = llmState.value!.products;
+      }
+
+      final pdfBytes = await PdfService.generateDiagnosisReport(
+        diagnosis: entry,
+        field: field,
+        season: season,
+        advice: advice,
+        products: products,
+      );
+
+      if (!context.mounted) return;
+      // Close loading dialog
+      Navigator.of(context).pop();
+
+      await Printing.layoutPdf(
+        onLayout: (_) => pdfBytes,
+        name: 'raport_agristack_${entry.id}.pdf',
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      // Close loading dialog
+      Navigator.of(context).pop();
+
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Błąd'),
+          content: Text('Nie udało się wygenerować raportu: $e'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
     }
   }
 }

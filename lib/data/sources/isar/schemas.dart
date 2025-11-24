@@ -17,10 +17,15 @@ class Field {
 
   String? notes;
 
+  // List of "lat,lng" strings
+  List<String>? polygonPoints;
+
+  // Area in hectares
+  double? area;
+
   late DateTime createdAt = DateTime.now();
   late DateTime updatedAt = DateTime.now();
 
-  
   @Backlink(to: 'field')
   final seasons = IsarLinks<FieldSeason>();
 }

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:agristack/app/di.dart';
 import 'package:agristack/domain/entities/entities.dart';
@@ -9,48 +10,64 @@ final mapControllerProvider =
       AsyncValue<List<DiagnosisEntryEntity>>,
       int?
     >((ref, fieldId) {
-      final c = MapController(ref, fieldId);
-      c.load();
-      return c;
+      return MapController(ref, fieldId);
     });
 
 class MapController
     extends StateNotifier<AsyncValue<List<DiagnosisEntryEntity>>> {
   final Ref ref;
   final int? fieldId;
+  StreamSubscription? _subscription;
 
-  MapController(this.ref, this.fieldId) : super(const AsyncValue.loading());
+  MapController(this.ref, this.fieldId) : super(const AsyncValue.loading()) {
+    _init();
+  }
 
-  Future<void> load() async {
+  Future<void> _init() async {
     try {
-      state = const AsyncValue.loading();
       final repo = await ref.read(diagnosisRepoProvider.future);
-
-      Result<List<DiagnosisEntryEntity>> res;
+      Stream<List<DiagnosisEntryEntity>> stream;
 
       if (fieldId != null) {
-        // Filtrowanie po polu
-        res = await repo.listByField(fieldId!);
+        stream = repo.watchByField(fieldId!);
       } else {
-        // Cała historia
-        res = await repo.listByDateRange(DateTime(2000, 1, 1), DateTime.now());
+        stream = repo.watchByDateRange(DateTime(2000, 1, 1), DateTime.now());
       }
 
-      if (res.isOk && res.data != null) {
-        // Filtrowanie tylko tych z koordynatami
-        final withCoords = res.data!
-            .where((e) => e.lat != null && e.lng != null)
-            .toList();
-        state = AsyncValue.data(withCoords);
-      } else if (res.error != null) {
-        state = AsyncValue.error(res.error!, StackTrace.current);
-      } else {
-        state = const AsyncValue.data([]);
-      }
+      _subscription = stream.listen(
+        (data) {
+          final withCoords = data
+              .where((e) => e.lat != null && e.lng != null)
+              .toList();
+          state = AsyncValue.data(withCoords);
+        },
+        onError: (e, st) {
+          state = AsyncValue.error(e, st);
+        },
+      );
     } catch (e, st) {
       state = AsyncValue.error(e, st);
     }
   }
 
-  Future<void> refresh() => load();
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    super.dispose();
+  }
+
+  Future<void> load() async {
+    // No-op, handled by stream
+  }
+
+  Future<void> refresh() async {
+    // No-op, handled by stream
+  }
 }
+
+final mapFieldsProvider = StreamProvider.autoDispose<List<FieldEntity>>((
+  ref,
+) async* {
+  final repo = await ref.watch(fieldsRepoProvider.future);
+  yield* repo.watchAll();
+});

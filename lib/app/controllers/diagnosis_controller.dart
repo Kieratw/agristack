@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:agristack/app/di.dart';
+import 'package:agristack/domain/entities/entities.dart';
 import 'package:agristack/domain/usecases/agristack_usecases.dart';
 
 class DiagnosisState {
@@ -7,12 +8,16 @@ class DiagnosisState {
   final String crop; // 'wheat' / 'potato' / 'oilseed_rape' / 'tomato'
   final bool isRunning;
   final String? label;
+  final double? manualLat;
+  final double? manualLng;
   final double? confidence;
 
-  final int? selectedFieldId; // wybrane pole
-  final int? selectedFieldSeasonId; // wybrany sezon tego pola
+  final int? selectedFieldId;
+  final int? selectedFieldSeasonId;
 
   final bool isSaving;
+  final bool isSaved;
+  final DiagnosisEntryEntity? lastSavedEntry;
   final String? error;
 
   DiagnosisState({
@@ -24,7 +29,11 @@ class DiagnosisState {
     this.selectedFieldId,
     this.selectedFieldSeasonId,
     this.isSaving = false,
+    this.isSaved = false,
+    this.lastSavedEntry,
     this.error,
+    this.manualLat,
+    this.manualLng,
   });
 
   DiagnosisState copyWith({
@@ -36,7 +45,11 @@ class DiagnosisState {
     int? selectedFieldId,
     int? selectedFieldSeasonId,
     bool? isSaving,
+    bool? isSaved,
+    DiagnosisEntryEntity? lastSavedEntry,
     String? error,
+    double? manualLat,
+    double? manualLng,
   }) {
     return DiagnosisState(
       imagePath: imagePath ?? this.imagePath,
@@ -48,7 +61,11 @@ class DiagnosisState {
       selectedFieldSeasonId:
           selectedFieldSeasonId ?? this.selectedFieldSeasonId,
       isSaving: isSaving ?? this.isSaving,
+      isSaved: isSaved ?? this.isSaved,
+      lastSavedEntry: lastSavedEntry ?? this.lastSavedEntry,
       error: error,
+      manualLat: manualLat ?? this.manualLat,
+      manualLng: manualLng ?? this.manualLng,
     );
   }
 }
@@ -58,12 +75,20 @@ class DiagnosisController extends StateNotifier<DiagnosisState> {
 
   DiagnosisController(this._ref) : super(DiagnosisState());
 
+  void reset() {
+    state = DiagnosisState();
+  }
+
   void setCrop(String crop) {
     state = state.copyWith(crop: crop);
   }
 
   void setImagePath(String? path) {
     state = state.copyWith(imagePath: path);
+  }
+
+  void setManualLocation(double? lat, double? lng) {
+    state = state.copyWith(manualLat: lat, manualLng: lng);
   }
 
   Future<void> setFieldId(int? fieldId) async {
@@ -134,11 +159,14 @@ class DiagnosisController extends StateNotifier<DiagnosisState> {
   }
 
   /// Faktyczny zapis do bazy z GPS (tutaj zakładamy, że to „drugi krok”).
-  Future<void> saveDiagnosis({double? lat, double? lng}) async {
+  Future<DiagnosisEntryEntity?> saveDiagnosis({
+    double? lat,
+    double? lng,
+  }) async {
     final imagePath = state.imagePath;
     if (imagePath == null) {
       state = state.copyWith(error: 'Brak zdjęcia, nie mogę zapisać');
-      return;
+      return null;
     }
 
     state = state.copyWith(isSaving: true, error: null);
@@ -146,7 +174,7 @@ class DiagnosisController extends StateNotifier<DiagnosisState> {
     try {
       final usecases = await _ref.read(agristackUsecasesProvider.future);
 
-      await usecases.save(
+      final savedEntry = await usecases.save(
         SaveDiagnosisParams(
           crop: state.crop,
           imagePath: imagePath,
@@ -156,9 +184,15 @@ class DiagnosisController extends StateNotifier<DiagnosisState> {
         ),
       );
 
-      state = state.copyWith(isSaving: false);
+      state = state.copyWith(
+        isSaving: false,
+        isSaved: true,
+        lastSavedEntry: savedEntry,
+      );
+      return savedEntry;
     } catch (e) {
       state = state.copyWith(isSaving: false, error: e.toString());
+      return null;
     }
   }
 }

@@ -38,6 +38,8 @@ class FieldsPage extends ConsumerWidget {
                 year: year,
                 crop: crop,
               ),
+              onDeleteDiagnosis: (id) =>
+                  controller.deleteDiagnosis(id, row.field.id),
             );
           },
         ),
@@ -84,6 +86,7 @@ class _FieldTile extends StatelessWidget {
   final ValueChanged<String> onRename;
   final VoidCallback onDelete;
   final void Function(int year, String crop) onAddSeason;
+  final ValueChanged<int> onDeleteDiagnosis;
 
   const _FieldTile({
     required this.row,
@@ -91,6 +94,7 @@ class _FieldTile extends StatelessWidget {
     required this.onRename,
     required this.onDelete,
     required this.onAddSeason,
+    required this.onDeleteDiagnosis,
   });
 
   @override
@@ -123,24 +127,20 @@ class _FieldTile extends StatelessWidget {
           ],
         ),
         children: [
-          if (row.loadingDetails)
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: LinearProgressIndicator(),
-            )
-          else ...[
-            if (row.error != null)
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: Text(
-                  'Błąd: ${row.error}',
-                  style: const TextStyle(color: Colors.red),
-                ),
+          if (row.error != null)
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Text(
+                'Błąd: ${row.error}',
+                style: const TextStyle(color: Colors.red),
               ),
-            _SeasonsSection(seasons: row.seasons, onAddSeason: onAddSeason),
-            const Divider(height: 1),
-            _DiagnosesSection(diagnoses: row.diagnoses),
-          ],
+            ),
+          _SeasonsSection(seasons: row.seasons, onAddSeason: onAddSeason),
+          const Divider(height: 1),
+          _DiagnosesSection(
+            diagnoses: row.diagnoses,
+            onDelete: onDeleteDiagnosis,
+          ),
         ],
       ),
     );
@@ -149,34 +149,37 @@ class _FieldTile extends StatelessWidget {
   Widget _buildSubtitle(BuildContext context) {
     final hasCoords =
         row.field.centerLat != null && row.field.centerLng != null;
+    final hasPolygon =
+        row.field.polygon != null && row.field.polygon!.isNotEmpty;
     final seasonsCount = row.seasons.length;
     final diagCount = row.diagnoses.length;
 
     final parts = <String>[];
+    if (row.field.area != null && row.field.area! > 0) {
+      parts.add('${row.field.area!.toStringAsFixed(2)} ha');
+    }
     if (seasonsCount > 0) parts.add('Uprawy: $seasonsCount');
     if (diagCount > 0) parts.add('Diagnozy: $diagCount');
-    if (hasCoords) parts.add('Ma lokalizację');
+    if (hasCoords && !hasPolygon) parts.add('Ma punkt');
+    if (hasPolygon) parts.add('Ma granice');
 
-    final hasDiagnosesWithLocation = row.diagnoses.any(
-      (d) => d.lat != null && d.lng != null,
-    );
-    final showMapButton = hasCoords || hasDiagnosesWithLocation;
+    // Always show map button to allow editing polygon
+    // const showMapButton = true;
 
-    if (parts.isEmpty) return const SizedBox.shrink();
+    // if (parts.isEmpty && !showMapButton) return const SizedBox.shrink();
 
     return Row(
       children: [
         Expanded(
           child: Text(parts.join(' • '), style: const TextStyle(fontSize: 12)),
         ),
-        if (showMapButton)
-          IconButton(
-            icon: const Icon(Icons.map, size: 20),
-            tooltip: 'Pokaż na mapie',
-            onPressed: () {
-              context.go('/app/map?fieldId=${row.field.id}');
-            },
-          ),
+        IconButton(
+          icon: const Icon(Icons.map, size: 20),
+          tooltip: 'Pokaż na mapie / Edytuj granice',
+          onPressed: () {
+            context.go('/app/map?fieldId=${row.field.id}');
+          },
+        ),
       ],
     );
   }
@@ -231,8 +234,9 @@ class _SeasonsSection extends StatelessWidget {
 
 class _DiagnosesSection extends StatelessWidget {
   final List<DiagnosisEntryEntity> diagnoses;
+  final ValueChanged<int> onDelete;
 
-  const _DiagnosesSection({required this.diagnoses});
+  const _DiagnosesSection({required this.diagnoses, required this.onDelete});
 
   @override
   Widget build(BuildContext context) {
@@ -271,7 +275,17 @@ class _DiagnosesSection extends StatelessWidget {
                 dense: true,
                 title: Text(d.displayLabelPl),
                 subtitle: Text('$dateStr • pewność: $conf%'),
-                trailing: const Icon(Icons.chevron_right_rounded),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline, color: Colors.red),
+                      onPressed: () =>
+                          _confirmDeleteDiagnosis(context, d, onDelete),
+                    ),
+                    const Icon(Icons.chevron_right_rounded),
+                  ],
+                ),
                 onTap: () {
                   // push zamiast go, żeby działał back button
                   context.push('/app/diagnosis/details', extra: d);
@@ -375,6 +389,34 @@ void _confirmDeleteField(
         ElevatedButton(
           onPressed: () {
             onDelete();
+            Navigator.of(ctx).pop();
+          },
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+          child: const Text('Usuń'),
+        ),
+      ],
+    ),
+  );
+}
+
+void _confirmDeleteDiagnosis(
+  BuildContext context,
+  DiagnosisEntryEntity diagnosis,
+  ValueChanged<int> onDelete,
+) {
+  showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Usuń diagnozę'),
+      content: const Text('Czy na pewno chcesz usunąć tę diagnozę?'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: const Text('Anuluj'),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            onDelete(diagnosis.id);
             Navigator.of(ctx).pop();
           },
           style: ElevatedButton.styleFrom(backgroundColor: Colors.red),

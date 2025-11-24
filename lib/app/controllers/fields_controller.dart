@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:agristack/app/di.dart';
 import 'package:agristack/domain/entities/entities.dart';
-import 'package:agristack/domain/value/result.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:agristack/app/utils/geometry_utils.dart';
 
 // State for a single row (field + details)
 class FieldRowState {
@@ -68,35 +70,69 @@ class FieldsState {
 
 final fieldsControllerProvider =
     StateNotifierProvider<FieldsController, FieldsState>((ref) {
-      final c = FieldsController(ref);
-      c.load();
-      return c;
+      return FieldsController(ref);
     });
 
 class FieldsController extends StateNotifier<FieldsState> {
-  final Ref ref;
+  final Ref _ref;
+  StreamSubscription? _subscription;
 
-  FieldsController(this.ref) : super(const FieldsState(isLoading: true));
+  FieldsController(this._ref) : super(const FieldsState(isLoading: true)) {
+    _init();
+  }
+
+  Future<void> _init() async {
+    try {
+      final repo = await _ref.read(fieldsRepoProvider.future);
+      _subscription = repo.watchAll().listen(
+        (fields) {
+          // Transform fields to FieldRowState
+          final currentExpanded = {
+            for (final item in state.items)
+              if (item.expanded) item.field.id,
+          };
+
+          final newItems = fields.map((f) {
+            final existingRow = state.items.firstWhere(
+              (item) => item.field.id == f.id,
+              orElse: () => FieldRowState(field: f),
+            );
+            return existingRow.copyWith(
+              field: f, // Update field data
+              expanded: currentExpanded.contains(f.id),
+              seasons: existingRow.expanded ? existingRow.seasons : const [],
+              diagnoses: existingRow.expanded
+                  ? existingRow.diagnoses
+                  : const [],
+            );
+          }).toList();
+
+          state = state.copyWith(items: newItems, isLoading: false);
+
+          // Trigger load for details for currently expanded items
+          for (var i = 0; i < newItems.length; i++) {
+            if (newItems[i].expanded) {
+              _loadFieldDetails(i, newItems[i].field.id);
+            }
+          }
+        },
+        onError: (e) {
+          state = state.copyWith(error: e.toString(), isLoading: false);
+        },
+      );
+    } catch (e) {
+      state = state.copyWith(error: e.toString(), isLoading: false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    super.dispose();
+  }
 
   Future<void> load() async {
-    try {
-      state = state.copyWith(isLoading: true, error: '');
-      final repo = await ref.read(fieldsRepoProvider.future);
-      final res = await repo.getAll();
-
-      if (res.isOk && res.data != null) {
-        // Map entities to RowStates
-        final rows = res.data!.map((f) => FieldRowState(field: f)).toList();
-        state = state.copyWith(isLoading: false, items: rows);
-      } else {
-        state = state.copyWith(
-          isLoading: false,
-          error: res.error?.message ?? 'Błąd pobierania pól',
-        );
-      }
-    } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
-    }
+    // No-op, handled by watchAll stream
   }
 
   Future<void> toggleExpanded(int fieldId) async {
@@ -121,6 +157,8 @@ class FieldsController extends StateNotifier<FieldsState> {
   Future<void> _loadFieldDetails(int index, int fieldId) async {
     // Set loadingDetails = true
     var items = List<FieldRowState>.from(state.items);
+    if (index >= items.length) return;
+
     items[index] = items[index].copyWith(
       loadingDetails: true,
       clearError: true,
@@ -128,8 +166,8 @@ class FieldsController extends StateNotifier<FieldsState> {
     state = state.copyWith(items: items);
 
     try {
-      final fieldsRepo = await ref.read(fieldsRepoProvider.future);
-      final diagRepo = await ref.read(diagnosisRepoProvider.future);
+      final fieldsRepo = await _ref.read(fieldsRepoProvider.future);
+      final diagRepo = await _ref.read(diagnosisRepoProvider.future);
 
       // Fetch seasons
       final seasonsRes = await fieldsRepo.getSeasons(fieldId);
@@ -169,12 +207,9 @@ class FieldsController extends StateNotifier<FieldsState> {
   }
 
   Future<void> addField(String name) async {
-    final repo = await ref.read(fieldsRepoProvider.future);
+    final repo = await _ref.read(fieldsRepoProvider.future);
     final res = await repo.add(name: name);
-    if (res.isOk) {
-      await load(); // Reload list
-    } else {
-      // Show global error or toast? For now just set error in state
+    if (!res.isOk) {
       state = state.copyWith(
         error: res.error?.message ?? 'Błąd dodawania pola',
       );
@@ -182,7 +217,7 @@ class FieldsController extends StateNotifier<FieldsState> {
   }
 
   Future<void> renameField(FieldEntity field, String newName) async {
-    final repo = await ref.read(fieldsRepoProvider.future);
+    final repo = await _ref.read(fieldsRepoProvider.future);
     final updated = FieldEntity(
       id: field.id,
       name: newName,
@@ -193,19 +228,15 @@ class FieldsController extends StateNotifier<FieldsState> {
       updatedAt: DateTime.now(),
     );
     final res = await repo.update(updated);
-    if (res.isOk) {
-      await load();
-    } else {
+    if (!res.isOk) {
       state = state.copyWith(error: res.error?.message ?? 'Błąd zmiany nazwy');
     }
   }
 
   Future<void> deleteField(int fieldId) async {
-    final repo = await ref.read(fieldsRepoProvider.future);
+    final repo = await _ref.read(fieldsRepoProvider.future);
     final res = await repo.delete(fieldId);
-    if (res.isOk) {
-      await load();
-    } else {
+    if (!res.isOk) {
       state = state.copyWith(error: res.error?.message ?? 'Błąd usuwania pola');
     }
   }
@@ -215,7 +246,7 @@ class FieldsController extends StateNotifier<FieldsState> {
     required int year,
     required String crop,
   }) async {
-    final repo = await ref.read(fieldsRepoProvider.future);
+    final repo = await _ref.read(fieldsRepoProvider.future);
     final res = await repo.addSeason(fieldId: fieldId, year: year, crop: crop);
 
     if (res.isOk) {
@@ -231,6 +262,64 @@ class FieldsController extends StateNotifier<FieldsState> {
         var items = List<FieldRowState>.from(state.items);
         items[index] = items[index].copyWith(
           error: res.error?.message ?? 'Błąd dodawania sezonu',
+        );
+        state = state.copyWith(items: items);
+      }
+    }
+  }
+
+  Future<void> updateFieldPolygon(int fieldId, List<LatLng> points) async {
+    final area = GeometryUtils.calculatePolygonArea(points);
+    final geoPoints = points
+        .map((p) => GeoPoint(p.latitude, p.longitude))
+        .toList();
+
+    final repo = await _ref.read(fieldsRepoProvider.future);
+
+    // Fetch current field
+    final row = state.items.firstWhere(
+      (r) => r.field.id == fieldId,
+      orElse: () => throw Exception('Field not found'),
+    );
+    final currentField = row.field;
+
+    final updated = FieldEntity(
+      id: currentField.id,
+      name: currentField.name,
+      centerLat: currentField.centerLat,
+      centerLng: currentField.centerLng,
+      notes: currentField.notes,
+      createdAt: currentField.createdAt,
+      updatedAt: DateTime.now(),
+      polygon: geoPoints,
+      area: area,
+    );
+
+    final res = await repo.update(updated);
+    if (!res.isOk) {
+      state = state.copyWith(
+        error: res.error?.message ?? 'Błąd zapisu poligonu',
+      );
+    }
+  }
+
+  Future<void> deleteDiagnosis(int diagnosisId, int fieldId) async {
+    final repo = await _ref.read(diagnosisRepoProvider.future);
+    final res = await repo.delete(diagnosisId);
+
+    if (res.isOk) {
+      // Refresh details for this field if it's expanded
+      final index = state.items.indexWhere((r) => r.field.id == fieldId);
+      if (index != -1 && state.items[index].expanded) {
+        await _loadFieldDetails(index, fieldId);
+      }
+    } else {
+      // Find row and set error
+      final index = state.items.indexWhere((r) => r.field.id == fieldId);
+      if (index != -1) {
+        var items = List<FieldRowState>.from(state.items);
+        items[index] = items[index].copyWith(
+          error: res.error?.message ?? 'Błąd usuwania diagnozy',
         );
         state = state.copyWith(items: items);
       }

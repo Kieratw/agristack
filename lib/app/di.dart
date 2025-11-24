@@ -61,14 +61,18 @@ final fieldsRepoProvider = FutureProvider<FieldsRepository>((ref) async {
   return IsarFieldsRepository(isar);
 });
 
-final fieldsListProvider = FutureProvider<List<FieldEntity>>((ref) async {
+final fieldsListProvider = StreamProvider<List<FieldEntity>>((ref) async* {
   final repo = await ref.watch(fieldsRepoProvider.future);
-  final res = await repo.getAll();
 
-  if (!res.isOk || res.data == null) {
-    throw Exception(res.error?.message ?? 'Nie udało się odczytać pól');
+  if (repo is IsarFieldsRepository) {
+    yield* repo.watchAll();
+  } else {
+    final res = await repo.getAll();
+    if (!res.isOk || res.data == null) {
+      throw Exception(res.error?.message ?? 'Nie udało się odczytać pól');
+    }
+    yield res.data!;
   }
-  return res.data!;
 });
 
 /// Sezony dla danego pola (używa getSeasons(fieldId))

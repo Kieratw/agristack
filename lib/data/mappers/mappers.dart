@@ -10,6 +10,11 @@ extension FieldX on Field {
     notes: notes,
     createdAt: createdAt,
     updatedAt: updatedAt,
+    polygon: polygonPoints?.map((s) {
+      final parts = s.split(',');
+      return GeoPoint(double.parse(parts[0]), double.parse(parts[1]));
+    }).toList(),
+    area: area,
   );
 }
 
