@@ -11,6 +11,7 @@ import 'package:agristack/app/pages/diagnosis_page.dart';
 import 'package:agristack/app/pages/info_page.dart';
 import 'package:agristack/app/shell/main_shell.dart';
 import 'package:agristack/app/pages/diagnosis_details_page.dart';
+import 'package:agristack/app/pages/photo_guide_page.dart';
 import 'package:agristack/domain/entities/entities.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -50,6 +51,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/app/diagnosis',
             builder: (context, state) => const DiagnosisPage(),
+          ),
+          GoRoute(
+            path: '/app/diagnosis/guide',
+            builder: (context, state) => const PhotoGuidePage(),
           ),
           GoRoute(
             path: '/app/info',

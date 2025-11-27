@@ -291,7 +291,20 @@ class _ImagePickerSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Zdjęcie', style: TextStyle(fontWeight: FontWeight.bold)),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Zdjęcie',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            IconButton(
+              onPressed: () => context.push('/app/diagnosis/guide'),
+              icon: const Icon(Icons.help_outline),
+              tooltip: 'Poradnik robienia zdjęć',
+            ),
+          ],
+        ),
         const SizedBox(height: 8),
         AspectRatio(
           aspectRatio: 4 / 3,
