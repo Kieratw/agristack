@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:agristack/app/controllers/diagnosis_controller.dart';
 import 'package:agristack/app/di.dart';
+import 'package:agristack/app/services/location_permissions.dart';
 import 'package:agristack/domain/entities/entities.dart';
 
 class DiagnosisPage extends ConsumerWidget {
@@ -247,16 +248,21 @@ class DiagnosisPage extends ConsumerWidget {
     // Jeśli nie ma ręcznej lokalizacji, spróbuj GPS
     if (lat == null || lng == null) {
       try {
-        LocationPermission permission = await Geolocator.checkPermission();
-        if (permission == LocationPermission.denied) {
-          permission = await Geolocator.requestPermission();
-        }
+        final hasPermission = await LocationPermissions.ensureLocationGranted();
 
-        if (permission == LocationPermission.whileInUse ||
-            permission == LocationPermission.always) {
+        if (hasPermission) {
           final pos = await Geolocator.getCurrentPosition();
           lat = pos.latitude;
           lng = pos.longitude;
+
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Pobrano lokalizację GPS'),
+                duration: Duration(seconds: 2),
+              ),
+            );
+          }
         }
       } catch (e) {
         debugPrint('Błąd lokalizacji: $e');

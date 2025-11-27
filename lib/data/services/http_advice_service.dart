@@ -1,12 +1,12 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:agristack/app/config/env_config.dart';
 import 'package:agristack/domain/services/advice_service.dart';
 import 'package:agristack/domain/value/result.dart';
 import 'package:agristack/data/models/advice_dtos.dart';
 
 class HttpAdviceService implements AdviceService {
-  // TODO: Move to configuration/secrets
-  static const String _baseUrl = 'https://agristack-advice-api-2739817dc93b.herokuapp.com';
+  static const String _baseUrl = EnvConfig.adviceApiUrl;
 
   final http.Client _client;
 

@@ -21,10 +21,6 @@ import '../data/repositories/json_dictionary_repository.dart';
 import '../domain/services/inference_service.dart';
 import '../data/services/mc_inference_service.dart';
 
-// ====== SECRETS (API key do Gemini - opcjonalne, jeśli używamy Advice API to może niepotrzebne, ale zostawiam serwis) ======
-import '../domain/services/secrets_service.dart';
-import '../data/services/secure_secrets_service.dart';
-
 // ====== ADVICE API ======
 import 'package:agristack/domain/services/advice_service.dart';
 import 'package:agristack/data/services/http_advice_service.dart';
@@ -118,18 +114,8 @@ final inferenceServiceProvider = Provider<InferenceService>(
 );
 
 /// =======================
-///   SECRETS
+///   ADVICE SERVICE
 /// =======================
-
-final secretsServiceProvider = Provider<SecretsService>(
-  (ref) => SecureSecretsService(),
-);
-
-// (Opcjonalnie) Provider klucza Gemini - jeśli potrzebny gdzie indziej, zostawiam.
-// Jeśli nie, można usunąć. InfoPage go używał, ale usunąłem.
-final geminiApiKeyProvider = FutureProvider<String?>((ref) async {
-  return ref.read(secretsServiceProvider).getGeminiApiKey();
-});
 
 /// =======================
 ///   ADVICE SERVICE

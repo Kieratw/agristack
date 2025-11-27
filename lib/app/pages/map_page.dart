@@ -10,7 +10,6 @@ import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'dart:ui' as ui;
-import 'dart:typed_data';
 
 class MapPage extends ConsumerWidget {
   final int? fieldId;
@@ -396,6 +395,18 @@ class _MapBodyState extends ConsumerState<_MapBody> {
               polygons: polygons,
               onMapCreated: (c) async {
                 _controller = c;
+                // Hide POIs
+                c.setMapStyle('''
+                    [
+                      {
+                        "featureType": "poi",
+                        "stylers": [
+                          { "visibility": "off" }
+                        ]
+                      }
+                    ]
+                  ''');
+
                 if (bounds != null) {
                   // Add some padding
                   Future.delayed(const Duration(milliseconds: 300), () {
@@ -451,7 +462,7 @@ class _MapBodyState extends ConsumerState<_MapBody> {
               ),
 
             Positioned(
-              bottom: 16,
+              bottom: 100,
               right: 16,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
