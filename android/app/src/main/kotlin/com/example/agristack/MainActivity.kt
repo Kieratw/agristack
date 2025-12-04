@@ -3,6 +3,11 @@ package com.example.agristack
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
+import android.graphics.Matrix
+import android.graphics.Paint
 import android.util.Log
 import io.flutter.FlutterInjector
 import io.flutter.embedding.android.FlutterActivity
@@ -14,6 +19,7 @@ import org.pytorch.Tensor
 import org.pytorch.torchvision.TensorImageUtils
 import java.io.File
 import java.io.FileOutputStream
+import java.util.Locale
 
 class MainActivity : FlutterActivity() {
 
@@ -36,13 +42,14 @@ class MainActivity : FlutterActivity() {
                         if (imagePath == null || assetPath == null) {
                             result.error(
                                 "bad_args",
-                                "imagePath/assetPath == null (imagePath=$imagePath, assetPath=$assetPath)",
+                                "imagePath/assetPath == null",
                                 null
                             )
                             return@setMethodCallHandler
                         }
 
                         try {
+                            // Uruchamiamy inferencję (z TTA dla wszystkich)
                             val outputs = runPytorchInference(
                                 context = this,
                                 imagePath = imagePath,
@@ -76,44 +83,109 @@ class MainActivity : FlutterActivity() {
         mean: List<Double>?,
         std: List<Double>?,
     ): FloatArray {
-        // 1. Załaduj / pobierz z cache moduł
+        // 1. Ładowanie modułu
         val module = moduleCache.getOrPut(assetPath) {
             val filePath = assetFilePath(context, assetPath)
             Log.d("AgriStackInference", "Loading model from $filePath")
-            Module.load(filePath)         // pełny PyTorch, NIE LiteModuleLoader
+            Module.load(filePath)
         }
 
-        // 2. Wczytaj bitmapę z dysku
+        // 2. Wczytanie oryginału (Full Resolution)
         val original: Bitmap = BitmapFactory.decodeFile(imagePath)
             ?: throw IllegalStateException("Nie mogę wczytać bitmapy z $imagePath")
 
-        val bitmap = Bitmap.createScaledBitmap(original, inputSize, inputSize, true)
+        // Przygotowanie tablic mean/std raz
+        val meanArr = (mean ?: listOf(0.485, 0.456, 0.406)).map { it.toFloat() }.toFloatArray()
+        val stdArr = (std ?: listOf(0.229, 0.224, 0.225)).map { it.toFloat() }.toFloatArray()
 
-        // 3. Tensor (CHW, float32)
-        val meanArr = (mean ?: listOf(0.0, 0.0, 0.0))
-            .map { it.toFloat() }
-            .toFloatArray()
+        // --- TRYB TTA (TEST TIME AUGMENTATION) DLA WSZYSTKICH ROŚLIN ---
+        Log.d("AgriStackInference", "Applying TTA (4x) for $assetPath")
 
-        val stdArr = (std ?: listOf(1.0, 1.0, 1.0))
-            .map { it.toFloat() }
-            .toFloatArray()
+        // Krok 1: Oryginał
+        val b1 = Bitmap.createScaledBitmap(original, inputSize, inputSize, true)
+        val r1 = forwardPass(module, b1, meanArr, stdArr)
 
+        // Krok 2: Lustrzane odbicie (Flip)
+        val b2 = flipBitmap(b1)
+        val r2 = forwardPass(module, b2, meanArr, stdArr)
+
+        // Krok 3: Zoom (Center Crop 80%)
+        // Cropujemy z oryginału (wysoka jakość), potem skalujemy do inputSize
+        val b3temp = centerCropBitmap(original, 0.8f)
+        val b3 = Bitmap.createScaledBitmap(b3temp, inputSize, inputSize, true)
+        val r3 = forwardPass(module, b3, meanArr, stdArr)
+
+        // Krok 4: Przyciemnienie (Dark)
+        // Używamy b1 (już przeskalowanego)
+        val b4 = darkenBitmap(b1, 0.8f) // 0.8 = 80% jasności
+        val r4 = forwardPass(module, b4, meanArr, stdArr)
+
+        // Uśrednianie wyników
+        val numClasses = r1.size
+        val finalResult = FloatArray(numClasses)
+
+        for (i in 0 until numClasses) {
+            finalResult[i] = (r1[i] + r2[i] + r3[i] + r4[i]) / 4.0f
+        }
+
+        return finalResult
+    }
+
+    // --- Helper: Pojedynczy przelot przez sieć ---
+    private fun forwardPass(
+        module: Module, 
+        bitmap: Bitmap, 
+        meanArr: FloatArray, 
+        stdArr: FloatArray
+    ): FloatArray {
         val inputTensor: Tensor = TensorImageUtils.bitmapToFloat32Tensor(
             bitmap,
             meanArr,
             stdArr,
         )
-
-        // 4. Forward
         val outputTensor = module.forward(IValue.from(inputTensor)).toTensor()
-
-        // 5. Zwracamy raw logits / softmax (co tam masz w modelu)
         return outputTensor.dataAsFloatArray
     }
 
+    // --- Helpers: Augmentacje ---
+
+    private fun flipBitmap(source: Bitmap): Bitmap {
+        val matrix = Matrix()
+        matrix.preScale(-1.0f, 1.0f) // Odbicie poziome
+        return Bitmap.createBitmap(source, 0, 0, source.width, source.height, matrix, true)
+    }
+
+    private fun centerCropBitmap(source: Bitmap, scale: Float): Bitmap {
+        val width = source.width
+        val height = source.height
+        
+        // Obliczamy nowe wymiary (np. 80% oryginału)
+        val newWidth = (width * scale).toInt()
+        val newHeight = (height * scale).toInt()
+        
+        // Obliczamy start X i Y żeby było na środku
+        val startX = (width - newWidth) / 2
+        val startY = (height - newHeight) / 2
+        
+        return Bitmap.createBitmap(source, startX, startY, newWidth, newHeight)
+    }
+
+    private fun darkenBitmap(source: Bitmap, brightness: Float): Bitmap {
+        // Tworzymy mutowalną bitmapę, żeby móc na niej rysować
+        val result = Bitmap.createBitmap(source.width, source.height, source.config ?: Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(result)
+        val paint = Paint()
+        
+        // Macierz kolorów do zmiany jasności (R, G, B mnożymy przez brightness)
+        val cm = ColorMatrix()
+        cm.setScale(brightness, brightness, brightness, 1f)
+        
+        paint.colorFilter = ColorMatrixColorFilter(cm)
+        canvas.drawBitmap(source, 0f, 0f, paint)
+        return result
+    }
+
     private fun assetFilePath(context: Context, assetPath: String): String {
-        // assetPath z Darta: "assets/models/oilseed_rape_v1.ptl"
-        // Plik tymczasowy w /data/data/.../files/
         val fileName = assetPath.replace("/", "_")
         val outFile = File(context.filesDir, fileName)
 
@@ -123,7 +195,6 @@ class MainActivity : FlutterActivity() {
 
         outFile.parentFile?.mkdirs()
 
-        // WAŻNE: zamiana "assets/..." -> prawdziwy klucz w paczce Fluttera
         val loader = FlutterInjector.instance().flutterLoader()
         val lookupKey = loader.getLookupKeyForAsset(assetPath)
         Log.d("AgriStackInference", "Copying asset $assetPath as $lookupKey to ${outFile.absolutePath}")

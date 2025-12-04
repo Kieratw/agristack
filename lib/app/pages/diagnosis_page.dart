@@ -375,7 +375,8 @@ class _CropSelector extends StatelessWidget {
         const Text('Uprawa', style: TextStyle(fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
-          value: selected,
+          key: ValueKey(selected),
+          initialValue: selected,
           items: const [
             DropdownMenuItem(value: 'wheat', child: Text('Pszenica')),
             DropdownMenuItem(value: 'potato', child: Text('Ziemniak')),
@@ -418,7 +419,8 @@ class _FieldDropdown extends StatelessWidget {
         const Text('Pole', style: TextStyle(fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),
         DropdownButtonFormField<int>(
-          value: selectedId,
+          key: ValueKey(selectedId),
+          initialValue: selectedId,
           items: fields
               .map(
                 (f) => DropdownMenuItem<int>(value: f.id, child: Text(f.name)),
@@ -458,7 +460,8 @@ class _FieldSeasonDropdown extends StatelessWidget {
         const Text('Sezon', style: TextStyle(fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),
         DropdownButtonFormField<int>(
-          value: selectedId,
+          key: ValueKey(selectedId),
+          initialValue: selectedId,
           items: seasons
               .map(
                 (s) => DropdownMenuItem<int>(

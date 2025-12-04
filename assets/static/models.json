@@ -1,7 +1,7 @@
 {
   "potato": {
-    "assetPath": "assets/models/potato_v1.ptl",
-    "modelId": "potato_v1_ptl",
+    "assetPath": "assets/models/potato_v2.ptl",
+    "modelId": "potato_v2_ptl",
     "inputSize": 380,
     "classNames": [
       "earlyblt",
@@ -10,8 +10,8 @@
     ]
   },
   "tomato": {
-    "assetPath": "assets/models/tomato_v1.ptl",
-    "modelId": "tomato_v1_ptl",
+    "assetPath": "assets/models/tomato_v2.ptl",
+    "modelId": "tomato_v2_ptl",
     "inputSize": 380,
     "classNames": [
       "Bacterial_spot227",
@@ -27,8 +27,8 @@
     ]
   },
   "wheat": {
-    "assetPath": "assets/models/wheat_v1.ptl",
-    "modelId": "wheat_v1_ptl",
+    "assetPath": "assets/models/wheat_v2.ptl",
+    "modelId": "wheat_v2_ptl",
     "inputSize": 380,
     "classNames": [
       "Healthy",
@@ -41,19 +41,19 @@
     ]
   },
   "oilseed_rape": {
-    "assetPath": "assets/models/oilseed_rape_v1.ptl",
-    "modelId": "rape_v1_ptl",
+    "assetPath": "assets/models/oilseed_rape_v2.ptl",
+    "modelId": "rape_v2_ptl",
     "inputSize": 380,
     "classNames": [
-    "Alt",
-    "Big",
-    "Bot",
-    "Mac",
-    "Mil",
-    "Myc",
-    "Pse",
-    "Xan",
-    "healthy"
+      "Alt",
+      "Big",
+      "Bot",
+      "Mac",
+      "Mil",
+      "Myc",
+      "Pse",
+      "Xan",
+      "healthy"
     ]
   }
 }

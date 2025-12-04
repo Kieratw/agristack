@@ -450,7 +450,8 @@ void _showAddSeasonDialog(
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: crop,
+                key: ValueKey(crop),
+                initialValue: crop,
                 decoration: const InputDecoration(labelText: 'Uprawa'),
                 items: const [
                   DropdownMenuItem(value: 'wheat', child: Text('Pszenica')),

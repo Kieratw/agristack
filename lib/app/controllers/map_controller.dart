@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:agristack/app/di.dart';
 import 'package:agristack/domain/entities/entities.dart';
-import 'package:agristack/domain/value/result.dart';
 
 final mapControllerProvider =
     StateNotifierProvider.family<

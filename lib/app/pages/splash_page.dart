@@ -75,13 +75,8 @@ class _FullScreenBackground extends StatelessWidget {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          Image.asset(
-            'assets/images/rzepak_bg.png',
-            fit: BoxFit.cover,
-          ),
-          Container(
-            color: Colors.black.withOpacity(0.45),
-          ),
+          Image.asset('assets/images/rzepak_bg.png', fit: BoxFit.cover),
+          Container(color: Colors.black.withValues(alpha: 0.45)),
           SafeArea(child: child),
         ],
       ),

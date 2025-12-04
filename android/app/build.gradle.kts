@@ -18,6 +18,12 @@ dependencies {
     implementation("org.pytorch:pytorch_android_torchvision:1.13.1")
 }
 
+configurations.all {
+    resolutionStrategy {
+        force("androidx.activity:activity:1.9.3")
+    }
+}
+
 android {
     namespace = "com.example.agristack"
     compileSdk = 36

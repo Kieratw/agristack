@@ -393,10 +393,7 @@ class _MapBodyState extends ConsumerState<_MapBody> {
               ),
               markers: markers,
               polygons: polygons,
-              onMapCreated: (c) async {
-                _controller = c;
-                // Hide POIs
-                c.setMapStyle('''
+              style: '''
                     [
                       {
                         "featureType": "poi",
@@ -405,7 +402,9 @@ class _MapBodyState extends ConsumerState<_MapBody> {
                         ]
                       }
                     ]
-                  ''');
+                  ''',
+              onMapCreated: (c) async {
+                _controller = c;
 
                 if (bounds != null) {
                   // Add some padding
@@ -581,6 +580,6 @@ class _MapBodyState extends ConsumerState<_MapBody> {
     );
     final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
 
-    return BitmapDescriptor.fromBytes(byteData!.buffer.asUint8List());
+    return BitmapDescriptor.bytes(byteData!.buffer.asUint8List());
   }
 }

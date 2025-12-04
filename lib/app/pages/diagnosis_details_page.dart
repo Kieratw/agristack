@@ -199,7 +199,7 @@ class _DiagnosisDetailsPageState extends ConsumerState<DiagnosisDetailsPage> {
                       ),
                     ),
                   ],
-                  if (response.disclaimer != null) ...[
+                  if (response.disclaimer.isNotEmpty) ...[
                     const SizedBox(height: 16),
                     Text(
                       'Uwaga: ${response.disclaimer}',
