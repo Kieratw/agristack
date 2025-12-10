@@ -15,7 +15,6 @@ import 'package:agristack/app/pages/photo_guide_page.dart';
 import 'package:agristack/domain/entities/entities.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
-final _shellNavigatorKey = GlobalKey<NavigatorState>();
 
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -24,56 +23,72 @@ final routerProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(path: '/splash', builder: (context, state) => const SplashPage()),
       GoRoute(path: '/start', builder: (context, state) => const StartPage()),
-      ShellRoute(
-        navigatorKey: _shellNavigatorKey,
-        builder: (context, state, child) =>
-            MainShell(child: child, location: state.matchedLocation),
-        routes: [
-          GoRoute(
-            path: '/app/home',
-            builder: (context, state) => const HomePage(),
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, navigationShell) {
+          return MainShell(navigationShell: navigationShell);
+        },
+        branches: [
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/app/home',
+                builder: (context, state) => const HomePage(),
+              ),
+            ],
           ),
-          GoRoute(
-            path: '/app/fields',
-            builder: (context, state) => const FieldsPage(),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/app/fields',
+                builder: (context, state) => const FieldsPage(),
+              ),
+            ],
           ),
-          GoRoute(
-            path: '/app/map',
-            builder: (context, state) {
-              final fieldIdStr = state.uri.queryParameters['fieldId'];
-              final fieldId = fieldIdStr != null
-                  ? int.tryParse(fieldIdStr)
-                  : null;
-              final isPicker = state.uri.queryParameters['isPicker'] == 'true';
-              return MapPage(fieldId: fieldId, isPicker: isPicker);
-            },
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/app/map',
+                builder: (context, state) {
+                  final fieldIdStr = state.uri.queryParameters['fieldId'];
+                  final fieldId = fieldIdStr != null
+                      ? int.tryParse(fieldIdStr)
+                      : null;
+                  final isPicker =
+                      state.uri.queryParameters['isPicker'] == 'true';
+                  return MapPage(fieldId: fieldId, isPicker: isPicker);
+                },
+              ),
+            ],
           ),
-          GoRoute(
-            path: '/app/diagnosis',
-            builder: (context, state) => const DiagnosisPage(),
-          ),
-          GoRoute(
-            path: '/app/diagnosis/guide',
-            builder: (context, state) => const PhotoGuidePage(),
-          ),
-          GoRoute(
-            path: '/app/info',
-            builder: (context, state) => const InfoPage(),
-          ),
-          GoRoute(
-            path: '/app/diagnosis/details',
-            builder: (context, state) {
-              final extra = state.extra;
-              if (extra is! DiagnosisEntryEntity) {
-                throw StateError(
-                  'Brak poprawnej diagnozy w state.extra dla /app/diagnosis/details',
-                );
-              }
-              return DiagnosisDetailsPage(entry: extra);
-            },
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/app/diagnosis',
+                builder: (context, state) => const DiagnosisPage(),
+                routes: [
+                  GoRoute(
+                    path: 'guide',
+                    builder: (context, state) => const PhotoGuidePage(),
+                  ),
+                  GoRoute(
+                    path: 'details',
+                    builder: (context, state) {
+                      final extra = state.extra;
+                      if (extra is! DiagnosisEntryEntity) {
+                        throw StateError(
+                          'Brak poprawnej diagnozy w state.extra dla /app/diagnosis/details',
+                        );
+                      }
+                      return DiagnosisDetailsPage(entry: extra);
+                    },
+                  ),
+                ],
+              ),
+            ],
           ),
         ],
       ),
+      GoRoute(path: '/app/info', builder: (context, state) => const InfoPage()),
     ],
   );
 });

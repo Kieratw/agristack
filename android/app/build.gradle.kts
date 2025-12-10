@@ -1,5 +1,6 @@
 import java.util.Properties
 import java.io.FileInputStream
+import java.util.Base64
 
 plugins {
     id("com.android.application")
@@ -46,11 +47,32 @@ android {
         versionName = flutter.versionName
         
         // Logic to resolve Google Maps API Key:
-        // 1. Environment variable (CI/CD or shell)
-        // 2. Gradle property (command line -P)
-        // 3. key.properties (local file fallback)
-        // 4. Fallback to empty string
-        val mapsApiKey = System.getenv("GOOGLE_MAPS_API_KEY")
+        // 1. Dart Defines (command line --dart-define)
+        // 2. Environment variable (CI/CD or shell)
+        // 3. Gradle property (command line -P)
+        // 4. key.properties (local file fallback)
+        // 5. Fallback to empty string
+
+        val dartDefines = project.findProperty("dart-defines") as? String
+        var dartDefineMap = mutableMapOf<String, String>()
+        if (dartDefines != null && dartDefines.isNotEmpty()) {
+            val decoded = dartDefines.split(",").map {
+                try {
+                    String(Base64.getDecoder().decode(it))
+                } catch (e: Exception) {
+                    ""
+                }
+            }
+            decoded.forEach {
+                val parts = it.split("=")
+                if (parts.size >= 2) {
+                    dartDefineMap[parts[0]] = parts.subList(1, parts.size).joinToString("=")
+                }
+            }
+        }
+
+        val mapsApiKey = dartDefineMap["GOOGLE_MAPS_API_KEY"]
+            ?: System.getenv("GOOGLE_MAPS_API_KEY")
             ?: project.findProperty("GOOGLE_MAPS_API_KEY")
             ?: project.findProperty("GOOGLE_MAPS_API_KEY_RELEASE")
             ?: ""
