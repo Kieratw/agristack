@@ -36,6 +36,9 @@ class MainActivity : FlutterActivity() {
                         val imagePath = call.argument<String>("imagePath")
                         val assetPath = call.argument<String>("assetPath")
                         val inputSize = call.argument<Int>("inputSize") ?: 380
+                        // Argumenty mean/std z Fluttera ignorujemy w inferencji,
+                        // bo model ma normalizację zaszytą w środku (WrappedClassifier).
+                        // Przyjmujemy je tylko dla zachowania API, ale nie używamy.
                         val mean = call.argument<List<Double>>("mean")
                         val std = call.argument<List<Double>>("std")
 
@@ -49,14 +52,12 @@ class MainActivity : FlutterActivity() {
                         }
 
                         try {
-                            // Uruchamiamy inferencję (z TTA dla wszystkich)
+                            // Uruchamiamy inferencję
                             val outputs = runPytorchInference(
                                 context = this,
                                 imagePath = imagePath,
                                 assetPath = assetPath,
-                                inputSize = inputSize,
-                                mean = mean,
-                                std = std,
+                                inputSize = inputSize
                             )
                             // FloatArray -> List<double>
                             result.success(outputs.map { it.toDouble() })
@@ -79,9 +80,7 @@ class MainActivity : FlutterActivity() {
         context: Context,
         imagePath: String,
         assetPath: String,
-        inputSize: Int,
-        mean: List<Double>?,
-        std: List<Double>?,
+        inputSize: Int
     ): FloatArray {
         // 1. Ładowanie modułu
         val module = moduleCache.getOrPut(assetPath) {
@@ -94,33 +93,34 @@ class MainActivity : FlutterActivity() {
         val original: Bitmap = BitmapFactory.decodeFile(imagePath)
             ?: throw IllegalStateException("Nie mogę wczytać bitmapy z $imagePath")
 
-        // Przygotowanie tablic mean/std raz
-        val meanArr = (mean ?: listOf(0.485, 0.456, 0.406)).map { it.toFloat() }.toFloatArray()
-        val stdArr = (std ?: listOf(0.229, 0.224, 0.225)).map { it.toFloat() }.toFloatArray()
+        // --- POPRAWKA KRYTYCZNA: NORMALIZACJA ---
+        // Ponieważ model (WrappedClassifier) ma w sobie zaszyte odejmowanie średniej i dzielenie przez std,
+        // tutaj musimy podać jedynie surowe wartości [0.0 - 1.0].
+        // Dlatego ustawiamy mean=0 i std=1. To wyłącza normalizację po stronie Androida.
+        val noMean = floatArrayOf(0.0f, 0.0f, 0.0f)
+        val noStd = floatArrayOf(1.0f, 1.0f, 1.0f)
 
-        // --- TRYB TTA (TEST TIME AUGMENTATION) DLA WSZYSTKICH ROŚLIN ---
+        // --- TRYB TTA (TEST TIME AUGMENTATION) ---
         Log.d("AgriStackInference", "Applying TTA (4x) for $assetPath")
 
-        // Krok 1: Oryginał
+        // Krok 1: Oryginał (Resize)
         val b1 = Bitmap.createScaledBitmap(original, inputSize, inputSize, true)
-        val r1 = forwardPass(module, b1, meanArr, stdArr)
+        val r1 = forwardPass(module, b1, noMean, noStd)
 
         // Krok 2: Lustrzane odbicie (Flip)
         val b2 = flipBitmap(b1)
-        val r2 = forwardPass(module, b2, meanArr, stdArr)
+        val r2 = forwardPass(module, b2, noMean, noStd)
 
         // Krok 3: Zoom (Center Crop 80%)
-        // Cropujemy z oryginału (wysoka jakość), potem skalujemy do inputSize
         val b3temp = centerCropBitmap(original, 0.8f)
         val b3 = Bitmap.createScaledBitmap(b3temp, inputSize, inputSize, true)
-        val r3 = forwardPass(module, b3, meanArr, stdArr)
+        val r3 = forwardPass(module, b3, noMean, noStd)
 
         // Krok 4: Przyciemnienie (Dark)
-        // Używamy b1 (już przeskalowanego)
         val b4 = darkenBitmap(b1, 0.8f) // 0.8 = 80% jasności
-        val r4 = forwardPass(module, b4, meanArr, stdArr)
+        val r4 = forwardPass(module, b4, noMean, noStd)
 
-        // Uśrednianie wyników
+        // Uśrednianie wyników (działa zarówno dla logits jak i softmax probabilities)
         val numClasses = r1.size
         val finalResult = FloatArray(numClasses)
 
@@ -138,6 +138,8 @@ class MainActivity : FlutterActivity() {
         meanArr: FloatArray, 
         stdArr: FloatArray
     ): FloatArray {
+        // bitmapToFloat32Tensor wykonuje: (pixel_value - mean) / std
+        // Przy mean=0, std=1 dostajemy po prostu pixel_value w zakresie 0..1 (dla RGB)
         val inputTensor: Tensor = TensorImageUtils.bitmapToFloat32Tensor(
             bitmap,
             meanArr,

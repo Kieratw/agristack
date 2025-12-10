@@ -542,6 +542,11 @@ class _MapBodyState extends ConsumerState<_MapBody> {
   Future<BitmapDescriptor> _createLabelMarkerBitmap(String text) async {
     final pictureRecorder = ui.PictureRecorder();
     final canvas = Canvas(pictureRecorder);
+
+    const fontSize = 26.0;
+    const paddingHorizontal = 12.0;
+    const paddingVertical = 6.0;
+
     final textPainter = TextPainter(
       textDirection: TextDirection.ltr,
       textAlign: TextAlign.center,
@@ -550,34 +555,42 @@ class _MapBodyState extends ConsumerState<_MapBody> {
     textPainter.text = TextSpan(
       text: text,
       style: const TextStyle(
-        fontSize: 40,
+        fontSize: fontSize,
         color: Colors.white,
         fontWeight: FontWeight.bold,
-        shadows: [
-          Shadow(
-            offset: Offset(1.0, 1.0),
-            blurRadius: 3.0,
-            color: Colors.black,
-          ),
-        ],
       ),
     );
 
     textPainter.layout();
 
-    // Draw background?
-    // final paint = Paint()
-    //   ..color = Colors.black.withOpacity(0.5)
-    //   ..style = PaintingStyle.fill;
-    // canvas.drawRect(Rect.fromLTWH(0, 0, textPainter.width, textPainter.height), paint);
+    final width = textPainter.width + paddingHorizontal * 2;
+    final height = textPainter.height + paddingVertical * 2;
 
-    textPainter.paint(canvas, Offset.zero);
+    // Draw Background
+    final paint = Paint()
+      ..color = Colors.black.withValues(alpha: 0.5)
+      ..style = PaintingStyle.fill;
+
+    final rect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(0, 0, width, height),
+      const Radius.circular(16),
+    );
+
+    canvas.drawRRect(rect, paint);
+
+    // Draw Border (Optional, but looks nice)
+    final borderPaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.8)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+
+    canvas.drawRRect(rect, borderPaint);
+
+    // Draw Text
+    textPainter.paint(canvas, Offset(paddingHorizontal, paddingVertical));
 
     final picture = pictureRecorder.endRecording();
-    final img = await picture.toImage(
-      textPainter.width.toInt(),
-      textPainter.height.toInt(),
-    );
+    final img = await picture.toImage(width.toInt(), height.toInt());
     final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
 
     return BitmapDescriptor.bytes(byteData!.buffer.asUint8List());
