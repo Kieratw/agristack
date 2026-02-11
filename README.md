@@ -103,7 +103,9 @@ flutter build apk \
 
 | Uprawa | Model | Architektura |
 |---|---|---|
-| Pszenica | `wheat_v2.ptl` | EfficientNet-B4 |
-| Ziemniak | `potato_v2.ptl` | EfficientNet-B4 |
-| Rzepak | `oilseed_rape_v2.ptl` | EfficientNet-B4 |
-| Pomidor | `tomato_v2.ptl` | EfficientNet-B4 |
+| Pszenica | `wheat_v2.ptl` | MobileNetV3_Large |
+| Ziemniak | `potato_v2.ptl` | MobileNetV3_Large |
+| Rzepak | `oilseed_rape_v2.ptl` | MobileNetV3_Large |
+| Pomidor | `tomato_v2.ptl` | MobileNetV3_Large |
+
+Modele CNN zostały wytrenowane w osobnym repozytorium: [**cropdoc-trainer**](https://github.com/Kieratw/cropdoc-trainer) — zawiera pipeline treningowy z Knowledge Distillation, ewaluację z TTA oraz eksport do PyTorch Mobile.
