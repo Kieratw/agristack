@@ -1,68 +1,109 @@
-# AgriStack
+# AgriStack 
 
-**AgriStack** to innowacyjna aplikacja mobilna wspierająca rolników w precyzyjnej diagnozie chorób roślin uprawnych. Wykorzystuje zaawansowane modele sztucznej inteligencji (CNN) działające bezpośrednio na urządzeniu (offline), co pozwala na szybką analizę bez konieczności dostępu do Internetu w polu.
+Aplikacja mobilna wspierająca rolników w precyzyjnej diagnozie chorób roślin uprawnych. Wykorzystuje modele CNN (PyTorch Mobile) działające offline na urządzeniu — analiza jest możliwa bez dostępu do Internetu.
 
-## Główne Funkcjonalności
+## Funkcjonalności
 
-*   **Diagnoza Offline**: Rozpoznawanie chorób pszenicy, ziemniaka, rzepaku i pomidora na podstawie zdjęć liści.
-*   **Mapa Pól**: Zarządzanie polami uprawnymi, rysowanie granic pól na mapie Google, wizualizacja miejsc wykonania diagnozy.
-*   **Historia Diagnoz**: Zapisywanie wyników wraz z lokalizacją GPS, datą i pewnością modelu.
-*   **Porady Eksperckie**: Integracja z systemem doradczym (LLM) w celu uzyskania szczegółowych zaleceń (wymaga Internetu).
-*   **Lokalna Baza Danych**: Wszystkie dane są bezpiecznie przechowywane na urządzeniu użytkownika (Isar DB).
+- **Diagnoza offline** — rozpoznawanie chorób pszenicy, ziemniaka, rzepaku i pomidora na podstawie zdjęć liści
+- **Test-Time Augmentation (TTA)** — 4-krotna augmentacja obrazu (oryginał, flip, zoom, przyciemnienie) dla wyższej dokładności
+- **Mapa pól** — zarządzanie polami, rysowanie granic, wizualizacja miejsc diagnoz na mapie Google
+- **Historia diagnoz** — zapis wyników z lokalizacją GPS, datą i pewnością modelu
+- **Porady eksperta (AI)** — integracja z LLM (wymaga backendu Advice API + Internetu)
+- **Eksport PDF** — generowanie raportów z diagnoz
+- **Lokalna baza danych** — dane przechowywane na urządzeniu (Isar DB)
 
 ## Technologie
 
-Projekt został zrealizowany przy użyciu nowoczesnych technologii:
+| Warstwa | Technologia |
+|---|---|
+| UI & logika | Flutter & Dart |
+| Stan aplikacji | Riverpod |
+| Nawigacja | GoRouter |
+| Baza danych | Isar (NoSQL, lokalna) |
+| Inferencja AI | PyTorch Mobile (Android, MethodChannel) |
+| Mapy | Google Maps SDK |
+| Backend porad | Advice API (osobne repozytorium) |
 
-*   **Flutter & Dart**: Wieloplatformowy framework UI.
-*   **PyTorch Mobile**: Uruchamianie modeli sieci neuronowych na urządzeniu.
-*   **Isar Database**: Wydajna, lokalna baza danych NoSQL.
-*   **Riverpod**: Zarządzanie stanem aplikacji.
-*   **Google Maps SDK**: Integracja z mapami.
+## Architektura
+
+Projekt stosuje **Clean Architecture** z podziałem na trzy warstwy:
+
+```
+lib/
+├── domain/          # Encje, modele, interfejsy repozytoriów i serwisów, use case'y
+├── data/            # Implementacje repozytoriów, serwisy (HTTP, MethodChannel), mappery
+├── app/             # UI (pages), kontrolery, routing, DI (Riverpod), theme
+│   ├── config/      # Konfiguracja środowiskowa (env_config.dart)
+│   ├── controllers/ # Kontrolery stanu (Riverpod Notifiers)
+│   ├── pages/       # Ekrany aplikacji
+│   ├── services/    # Serwisy aplikacyjne (PDF, lokalizacja)
+│   ├── usecases/    # Implementacje use case'ów
+│   └── utils/       # Narzędzia (tłumaczenia, geometria)
+└── main.dart
+```
 
 ## Wymagania
 
-*   Android 5.0 (API level 21) lub nowszy.
-*   Dostęp do aparatu i lokalizacji GPS.
+- Flutter SDK ^3.8.1
+- Android 5.0+ (API 21)
+- Dostęp do aparatu i lokalizacji GPS
 
-## Konfiguracja i Uruchomienie
+## Konfiguracja i uruchomienie
 
-Aby w pełni korzystać z funkcji aplikacji (w tym z porad eksperckich), wymagane jest uruchomienie backendu **Advice API**.
+### 1. Klonowanie
 
-### 1. Backend (Advice API)
+```bash
+git clone https://github.com/Kieratw/agristack.git
+cd agristack
+flutter pub get
+```
 
-Aplikacja komunikuje się z zewnętrznym API do generowania porad.
-1.  Pobierz i uruchom projekt Advice API (dostępny w osobnym repozytorium).
-2.  Upewnij się, że API działa i jest dostępne (np. pod adresem `http://localhost:8000` lub publicznym URL).
+### 2. Zmienne środowiskowe (`--dart-define`)
 
-### 2. Aplikacja Mobilna
+Aplikacja wymaga podania kluczy przy budowaniu/uruchamianiu:
 
-1.  **Klonowanie repozytorium**:
-    ```bash
-    git clone https://github.com/Kieratw/agristack.git
-    cd agristack
-    ```
+| Zmienna | Opis | Wymagana? |
+|---|---|---|
+| `GOOGLE_MAPS_API_KEY` | Klucz API Google Maps (uzyskaj w [Google Cloud Console](https://console.cloud.google.com/apis/credentials)) | ✅ Tak |
+| `ADVICE_API_URL` | URL backendu Advice API (np. `http://localhost:8000`) | Tylko dla porad AI |
 
-2.  **Konfiguracja zmiennych środowiskowych**:
-    Aplikacja domyślnie łączy się z produkcyjnym API. Aby wskazać własny adres backendu (np. lokalny), użyj flagi `--dart-define` przy uruchamianiu:
+Klucz Google Maps można też ustawić przez plik `android/local.properties`:
+```properties
+GOOGLE_MAPS_API_KEY_DEBUG=twoj_klucz
+GOOGLE_MAPS_API_KEY_RELEASE=twoj_klucz
+```
 
-    ```bash
-    flutter run --dart-define=ADVICE_API_URL="http://twoj-adres-api:8000"
-    ```
+### 3. Backend — Advice API
 
-    > **Uwaga**: Ten adres API jest niezbędny do komunikacji z modelem LLM (Google AI Studio) w celu generowania porad eksperckich.
+Aby korzystać z funkcji **porad eksperckich (AI)**, musisz uruchomić serwer Advice API:
 
+1. Sklonuj repozytorium: [Kieratw/agristack-advice-api](https://github.com/Kieratw/agristack-advice-api)
+2. Skonfiguruj w nim klucz do **Google AI Studio** (Gemini API)
+3. Uruchom serwer (domyślnie `http://localhost:8000`)
 
-3.  **Klucze API**:
-    Utwórz plik `android/local.properties` i dodaj swój klucz Google Maps:
-    ```properties
-    GOOGLE_MAPS_API_KEY_DEBUG=twoj_klucz_debug
-    GOOGLE_MAPS_API_KEY_RELEASE=twoj_klucz_release
-    ```
+> **Uwaga:** Bez uruchomionego backendu aplikacja działa normalnie — jedynie funkcja porad AI będzie niedostępna.
 
-4.  **Uruchomienie**:
-    ```bash
-    flutter pub get
-    flutter run
-    ```
+### 4. Uruchomienie
 
+```bash
+flutter run \
+  --dart-define=GOOGLE_MAPS_API_KEY="twoj_klucz_google_maps" \
+  --dart-define=ADVICE_API_URL="http://twoj-adres-api:8000"
+```
+
+### 5. Budowanie APK
+
+```bash
+flutter build apk \
+  --dart-define=GOOGLE_MAPS_API_KEY="twoj_klucz_google_maps" \
+  --dart-define=ADVICE_API_URL="https://twoj-adres-api.com"
+```
+
+## Obsługiwane uprawy i modele
+
+| Uprawa | Model | Architektura |
+|---|---|---|
+| Pszenica | `wheat_v2.ptl` | EfficientNet-B4 |
+| Ziemniak | `potato_v2.ptl` | EfficientNet-B4 |
+| Rzepak | `oilseed_rape_v2.ptl` | EfficientNet-B4 |
+| Pomidor | `tomato_v2.ptl` | EfficientNet-B4 |

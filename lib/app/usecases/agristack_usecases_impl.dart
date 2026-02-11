@@ -239,6 +239,34 @@ class SaveDiagnosisUseCaseImpl implements SaveDiagnosisUseCase {
 
   @override
   Future<DiagnosisEntryEntity> call(SaveDiagnosisParams p) async {
+    final now = DateTime.now();
+
+    // 0. Jeśli mamy precomputedResult (z preview), używamy go
+    if (p.precomputedResult != null) {
+      final pre = p.precomputedResult!;
+      final entity = DiagnosisEntryEntity(
+        id: 0,
+        timestamp: now,
+        imagePath: p.imagePath,
+        fieldSeasonId: p.fieldSeasonId,
+        lat: p.lat,
+        lng: p.lng,
+        modelId: pre.modelId,
+        rawLabel: pre.rawLabel,
+        canonicalDiseaseId: pre.canonicalDiseaseId,
+        displayLabelPl: pre.displayLabelPl,
+        confidence: pre.confidence,
+        recommendationKey: pre.recommendationKey,
+        notes: null,
+        createdAt: now,
+      );
+      final r = await _diag.save(entity);
+      if (!r.isOk) {
+        throw StateError('Nie udało się zapisać diagnozy (cached): ${r.error}');
+      }
+      return entity;
+    }
+
     final cfg = _dict.getModelConfig(p.crop);
     if (cfg == null) {
       throw StateError('Brak modelu dla crop=${p.crop}');
@@ -261,8 +289,6 @@ class SaveDiagnosisUseCaseImpl implements SaveDiagnosisUseCase {
     // 3. mapowanie na canonicalId + label PL
     final canonical = _dict.mapRawLabelToId(raw, crop: p.crop) ?? raw;
     final displayPl = _dict.getDiseaseDisplay(canonical) ?? canonical;
-
-    final now = DateTime.now();
 
     final entity = DiagnosisEntryEntity(
       id: 0,

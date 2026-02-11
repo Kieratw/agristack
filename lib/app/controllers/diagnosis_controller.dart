@@ -18,6 +18,8 @@ class DiagnosisState {
   final bool isSaving;
   final bool isSaved;
   final DiagnosisEntryEntity? lastSavedEntry;
+  // --- NEW ---
+  final DiagnosisEntryEntity? previewResult;
   final String? error;
 
   DiagnosisState({
@@ -31,6 +33,7 @@ class DiagnosisState {
     this.isSaving = false,
     this.isSaved = false,
     this.lastSavedEntry,
+    this.previewResult,
     this.error,
     this.manualLat,
     this.manualLng,
@@ -47,6 +50,7 @@ class DiagnosisState {
     bool? isSaving,
     bool? isSaved,
     DiagnosisEntryEntity? lastSavedEntry,
+    DiagnosisEntryEntity? previewResult,
     String? error,
     double? manualLat,
     double? manualLng,
@@ -63,6 +67,7 @@ class DiagnosisState {
       isSaving: isSaving ?? this.isSaving,
       isSaved: isSaved ?? this.isSaved,
       lastSavedEntry: lastSavedEntry ?? this.lastSavedEntry,
+      previewResult: previewResult ?? this.previewResult,
       error: error,
       manualLat: manualLat ?? this.manualLat,
       manualLng: manualLng ?? this.manualLng,
@@ -152,6 +157,7 @@ class DiagnosisController extends StateNotifier<DiagnosisState> {
         isRunning: false,
         label: entry.displayLabelPl,
         confidence: entry.confidence,
+        previewResult: entry, // Save for later reuse
       );
     } catch (e) {
       state = state.copyWith(isRunning: false, error: e.toString());
@@ -163,6 +169,14 @@ class DiagnosisController extends StateNotifier<DiagnosisState> {
     double? lat,
     double? lng,
   }) async {
+    // 1. Protection against double-click (save in progress)
+    if (state.isSaving) return null;
+
+    // 2. Idempotency (already saved)
+    if (state.isSaved && state.lastSavedEntry != null) {
+      return state.lastSavedEntry;
+    }
+
     final imagePath = state.imagePath;
     if (imagePath == null) {
       state = state.copyWith(error: 'Brak zdjęcia, nie mogę zapisać');
@@ -181,6 +195,7 @@ class DiagnosisController extends StateNotifier<DiagnosisState> {
           fieldSeasonId: state.selectedFieldSeasonId,
           lat: lat,
           lng: lng,
+          precomputedResult: state.previewResult, // --- Reuse Inference! ---
         ),
       );
 

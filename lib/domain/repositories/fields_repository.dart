@@ -19,5 +19,6 @@ abstract class FieldsRepository {
   });
   Future<Result<FieldSeasonEntity?>> findSeason(int fieldId, int year);
   Future<Result<FieldEntity?>> get(int fieldId);
+  Future<Result<FieldSeasonEntity?>> getSeason(int seasonId);
   Stream<List<FieldEntity>> watchAll();
 }

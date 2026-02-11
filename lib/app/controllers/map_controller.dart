@@ -17,8 +17,15 @@ class MapController
   final Ref ref;
   final int? fieldId;
   StreamSubscription? _subscription;
+  int? _year;
 
   MapController(this.ref, this.fieldId) : super(const AsyncValue.loading()) {
+    _init();
+  }
+
+  void setYear(int? year) {
+    if (_year == year) return;
+    _year = year;
     _init();
   }
 
@@ -28,11 +35,22 @@ class MapController
       Stream<List<DiagnosisEntryEntity>> stream;
 
       if (fieldId != null) {
-        stream = repo.watchByField(fieldId!);
+        // For specific field, we usually show all history or filter by year if needed
+        // Use the same logic: if _year is set, filter by it.
+        stream = repo.watchByField(fieldId!, year: _year);
       } else {
-        stream = repo.watchByDateRange(DateTime(2000, 1, 1), DateTime.now());
+        // Global map
+        if (_year != null) {
+          stream = repo.watchByDateRange(
+            DateTime(_year!, 1, 1),
+            DateTime(_year!, 12, 31, 23, 59, 59),
+          );
+        } else {
+          stream = repo.watchByDateRange(DateTime(2000, 1, 1), DateTime.now());
+        }
       }
 
+      await _subscription?.cancel();
       _subscription = stream.listen(
         (data) {
           final withCoords = data
@@ -69,4 +87,22 @@ final mapFieldsProvider = StreamProvider.autoDispose<List<FieldEntity>>((
 ) async* {
   final repo = await ref.watch(fieldsRepoProvider.future);
   yield* repo.watchAll();
+});
+
+final availableMapYearsProvider = FutureProvider<List<int>>((ref) async {
+  final repo = await ref.watch(fieldsRepoProvider.future);
+  // Get all seasons to extract years
+  // Ideally we should modify repo to distinct years, but fetching all fields+seasons is fine for now
+  final allFields = await repo.getAll();
+  if (!allFields.isOk || allFields.data == null) return [];
+
+  final years = <int>{};
+  for (final f in allFields.data!) {
+    final seasons = await repo.getSeasons(f.id);
+    if (seasons.isOk && seasons.data != null) {
+      years.addAll(seasons.data!.map((s) => s.year));
+    }
+  }
+  final sorted = years.toList()..sort((a, b) => b.compareTo(a)); // Descending
+  return sorted;
 });

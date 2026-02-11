@@ -33,6 +33,12 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/app/home',
                 builder: (context, state) => const HomePage(),
+                routes: [
+                  GoRoute(
+                    path: 'info',
+                    builder: (context, state) => const InfoPage(),
+                  ),
+                ],
               ),
             ],
           ),
@@ -88,7 +94,6 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
         ],
       ),
-      GoRoute(path: '/app/info', builder: (context, state) => const InfoPage()),
     ],
   );
 });

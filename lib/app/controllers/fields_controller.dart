@@ -226,6 +226,8 @@ class FieldsController extends StateNotifier<FieldsState> {
       notes: field.notes,
       createdAt: field.createdAt,
       updatedAt: DateTime.now(),
+      polygon: field.polygon, // Zachowaj istniejące granice
+      area: field.area, // Zachowaj istniejącą powierzchnię
     );
     final res = await repo.update(updated);
     if (!res.isOk) {

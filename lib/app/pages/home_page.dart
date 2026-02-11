@@ -29,14 +29,12 @@ class HomePage extends StatelessWidget {
         icon: Icons.info_outline_rounded,
         label: 'Informacje',
         description: 'Wersje modeli i szczegóły projektu',
-        route: '/app/info',
+        route: '/app/home/info',
       ),
     ];
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('AgriStack'),
-      ),
+      appBar: AppBar(title: const Text('AgriStack')),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: GridView.count(
@@ -99,17 +97,17 @@ class _HomeCard extends StatelessWidget {
               const SizedBox(height: 12),
               Text(
                 label,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               Expanded(
                 child: Text(
                   description,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
+                    color: colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ),
             ],

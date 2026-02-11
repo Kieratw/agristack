@@ -9,7 +9,7 @@ class MainShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tabs = <_NavItem>[
-      const _NavItem(icon: Icons.home_rounded, label: 'Home'),
+      const _NavItem(icon: Icons.home_rounded, label: 'Start'),
       const _NavItem(icon: Icons.terrain_rounded, label: 'Pola'),
       const _NavItem(icon: Icons.map_rounded, label: 'Mapa'),
       const _NavItem(icon: Icons.science_rounded, label: 'Diagnoza'),

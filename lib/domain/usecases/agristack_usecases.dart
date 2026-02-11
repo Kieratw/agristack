@@ -13,6 +13,7 @@ class SaveDiagnosisParams {
   final int? fieldSeasonId; // może być null (diagnoza „luźna”)
   final double? lat;
   final double? lng;
+  final DiagnosisEntryEntity? precomputedResult;
 
   SaveDiagnosisParams({
     required this.crop,
@@ -20,6 +21,7 @@ class SaveDiagnosisParams {
     this.fieldSeasonId,
     this.lat,
     this.lng,
+    this.precomputedResult,
   });
 }
 

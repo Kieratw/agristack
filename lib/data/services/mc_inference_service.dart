@@ -33,6 +33,13 @@ class MethodChannelInferenceService implements InferenceService {
         .map((e) => (e as num).toDouble())
         .toList(growable: false);
 
+    if (probs.isEmpty) {
+      // Fallback or Error
+      if (numClasses == 0)
+        throw StateError('numClasses is 0 - Check models.json');
+      return InferenceResult(0, 0.0, rawLabel: null); // Safe fallback
+    }
+
     var bestIdx = 0;
     var bestVal = probs[0];
     for (var i = 1; i < probs.length; i++) {

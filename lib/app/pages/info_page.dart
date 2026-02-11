@@ -71,26 +71,26 @@ class InfoPage extends ConsumerWidget {
             ),
             const SizedBox(height: 16),
 
-            _buildModelCard(context, 'Pszenica', 'wheat_v1.ptl', Icons.grass),
+            _buildModelCard(context, 'Pszenica', 'wheat_v2.ptl', Icons.grass),
             const SizedBox(height: 8),
             _buildModelCard(
               context,
               'Ziemniak',
-              'potato_v1.ptl',
+              'potato_v2.ptl',
               Icons.circle_outlined, // potato-ish
             ),
             const SizedBox(height: 8),
             _buildModelCard(
               context,
               'Rzepak',
-              'oilseed_rape_v1.ptl',
+              'oilseed_rape_v2.ptl',
               Icons.local_florist,
             ),
             const SizedBox(height: 8),
             _buildModelCard(
               context,
               'Pomidor',
-              'tomato_v1.ptl',
+              'tomato_v2.ptl',
               Icons.circle,
               color: Colors.red,
             ),

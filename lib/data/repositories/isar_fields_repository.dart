@@ -187,6 +187,16 @@ class IsarFieldsRepository implements FieldsRepository {
     }
   }
 
+  @override
+  Future<Result<FieldSeasonEntity?>> getSeason(int seasonId) async {
+    try {
+      final s = await isar.fieldSeasons.get(seasonId);
+      return Result.ok(s?.toEntity());
+    } catch (e) {
+      return Result.err(AppError('db.read_failed', e.toString()));
+    }
+  }
+
   Stream<List<FieldEntity>> watchAll() async* {
     yield* isar.fields
         .where()

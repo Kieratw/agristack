@@ -53,6 +53,7 @@ class _MapBody extends ConsumerStatefulWidget {
 class _MapBodyState extends ConsumerState<_MapBody> {
   GoogleMapController? _controller;
   late Future<LatLngBounds?> _initialBoundsFuture;
+  int? _selectedYear;
 
   // Edit mode state
   bool _isEditMode = false;
@@ -83,6 +84,11 @@ class _MapBodyState extends ConsumerState<_MapBody> {
   }
 
   Future<LatLngBounds?> _computeInitialBounds() async {
+    // Reset edit state for new field
+    _polygonPoints = [];
+    _currentArea = 0.0;
+    _isEditMode = false;
+
     // 1. If specific field selected, focus on it
     if (widget.fieldId != null) {
       try {
@@ -460,6 +466,75 @@ class _MapBodyState extends ConsumerState<_MapBody> {
                 ),
               ),
 
+            // --- Year Filter (Only for Global Map & Not Picker & Not Edit) ---
+            if (!widget.isPicker && widget.fieldId == null && !_isEditMode)
+              Positioned(
+                top: 16,
+                left: 16,
+                right: 16,
+                child: SafeArea(
+                  child: Center(
+                    child: Consumer(
+                      builder: (context, ref, _) {
+                        final yearsAsync = ref.watch(availableMapYearsProvider);
+                        final years = yearsAsync.valueOrNull ?? [];
+
+                        if (years.isEmpty) return const SizedBox.shrink();
+
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Colors.black26,
+                                blurRadius: 4,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<int>(
+                              value: _selectedYear,
+                              hint: const Text('Wszystkie lata'),
+                              icon: const Icon(Icons.calendar_month),
+                              items: [
+                                const DropdownMenuItem<int>(
+                                  value: null,
+                                  child: Text('Wszystkie lata'),
+                                ),
+                                ...years.map(
+                                  (y) => DropdownMenuItem<int>(
+                                    value: y,
+                                    child: Text(y.toString()),
+                                  ),
+                                ),
+                              ],
+                              onChanged: (val) {
+                                setState(() {
+                                  _selectedYear = val;
+                                });
+                                ref
+                                    .read(
+                                      mapControllerProvider(
+                                        widget.fieldId,
+                                      ).notifier,
+                                    )
+                                    .setYear(val);
+
+                                // Refresh manually just in case, though stream should handle it
+                                // ref.invalidate(mapControllerProvider(widget.fieldId));
+                              },
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ),
+
             Positioned(
               bottom: 100,
               right: 16,
@@ -528,7 +603,50 @@ class _MapBodyState extends ConsumerState<_MapBody> {
 
   Future<void> _generateMarkerIcon(FieldEntity field) async {
     try {
-      final icon = await _createLabelMarkerBitmap(field.name);
+      if (field.polygon == null || field.polygon!.isEmpty) return;
+      final points = field.polygon!.map((p) => LatLng(p.lat, p.lng)).toList();
+
+      // Calculate field extent to determine desired width
+      final bounds = GeometryUtils.calculateBounds(points);
+      final widthMeters = Geolocator.distanceBetween(
+        bounds.southwest.latitude,
+        bounds.southwest.longitude,
+        bounds.southwest.latitude,
+        bounds.northeast.longitude,
+      );
+
+      // Estimate pixel width at zoom level ~15/16
+      // At zoom 15, 1px ~= 4.77m (at equator, less at higher lat).
+      // At lat 52, cos(52) ~= 0.6. So 1px ~= 4.77 * 0.6 ~= 2.9m.
+      // Let's assume a target text width relative to field width.
+      // We want text to cover roughly 60-80% of width?
+      // Or just choose font size based on physical size.
+
+      // Simplified approach: A field 100m wide -> Text should be maybe 60m wide?
+      // Just pass the desired width in meters to helper?
+      // Marker bitmap isn't zoomed by Google Maps automatically for `Marker`. It stays constant pixel size.
+      // This is a trade-off. We can't easily resize marker on zoom change without creating new bitmaps.
+      // USER REQUEST: fit inside boundaries.
+      // We'll generate a bitmap that is "reasonable" size.
+      // If the field is huge (1km), we want a bigger label. If small (50m), smaller label.
+
+      // Let's use a scale factor.
+      // Small field < 1ha (<100m side) -> fontSize 20
+      // Medium field -> fontSize 30
+      // Large field -> fontSize 40...
+
+      double fontSize = 24.0;
+      if (widthMeters < 100) {
+        fontSize = 20.0;
+      } else if (widthMeters < 300) {
+        fontSize = 30.0;
+      } else if (widthMeters < 600) {
+        fontSize = 45.0;
+      } else {
+        fontSize = 60.0;
+      }
+
+      final icon = await _createLabelMarkerBitmap(field.name, fontSize);
       if (mounted) {
         setState(() {
           _markerIcons[field.id] = icon;
@@ -539,55 +657,67 @@ class _MapBodyState extends ConsumerState<_MapBody> {
     }
   }
 
-  Future<BitmapDescriptor> _createLabelMarkerBitmap(String text) async {
+  Future<BitmapDescriptor> _createLabelMarkerBitmap(
+    String text,
+    double fontSize,
+  ) async {
     final pictureRecorder = ui.PictureRecorder();
     final canvas = Canvas(pictureRecorder);
 
-    const fontSize = 26.0;
-    const paddingHorizontal = 12.0;
-    const paddingVertical = 6.0;
+    // Padding for the glow/outline
+    const padding = 20.0;
 
+    // 1. Setup Painters
+    final textStyle = TextStyle(
+      fontSize: fontSize,
+      fontWeight: FontWeight.w900,
+      color: Colors.white,
+    );
+
+    final textSpan = TextSpan(text: text, style: textStyle);
     final textPainter = TextPainter(
+      text: textSpan,
       textDirection: TextDirection.ltr,
       textAlign: TextAlign.center,
     );
+    textPainter.layout();
 
-    textPainter.text = TextSpan(
-      text: text,
-      style: const TextStyle(
-        fontSize: fontSize,
-        color: Colors.white,
-        fontWeight: FontWeight.bold,
+    final width = textPainter.width + padding * 2;
+    final height = textPainter.height + padding * 2;
+
+    // 2. Draw Outline (Halo)
+    // We draw the text with a thick stroke in black
+    final outlineStyle = TextStyle(
+      fontSize: fontSize,
+      fontWeight: FontWeight.w900,
+      foreground: Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 4.0
+        ..color = Colors.black,
+    );
+
+    final outlinePainter = TextPainter(
+      text: TextSpan(text: text, style: outlineStyle),
+      textDirection: TextDirection.ltr,
+      textAlign: TextAlign.center,
+    );
+    outlinePainter.layout();
+    outlinePainter.paint(
+      canvas,
+      Offset(
+        (width - outlinePainter.width) / 2,
+        (height - outlinePainter.height) / 2,
       ),
     );
 
-    textPainter.layout();
-
-    final width = textPainter.width + paddingHorizontal * 2;
-    final height = textPainter.height + paddingVertical * 2;
-
-    // Draw Background
-    final paint = Paint()
-      ..color = Colors.black.withValues(alpha: 0.5)
-      ..style = PaintingStyle.fill;
-
-    final rect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(0, 0, width, height),
-      const Radius.circular(16),
+    // 3. Draw Fill (White)
+    textPainter.paint(
+      canvas,
+      Offset(
+        (width - textPainter.width) / 2,
+        (height - textPainter.height) / 2,
+      ),
     );
-
-    canvas.drawRRect(rect, paint);
-
-    // Draw Border (Optional, but looks nice)
-    final borderPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.8)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
-
-    canvas.drawRRect(rect, borderPaint);
-
-    // Draw Text
-    textPainter.paint(canvas, Offset(paddingHorizontal, paddingVertical));
 
     final picture = pictureRecorder.endRecording();
     final img = await picture.toImage(width.toInt(), height.toInt());

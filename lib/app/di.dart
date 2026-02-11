@@ -102,7 +102,13 @@ final dictionaryRepoProvider = Provider<DictionaryRepository>((ref) {
 
 /// Poczekaj na to w splashu razem z isarProvider
 final dictionaryInitializerProvider = FutureProvider<void>((ref) async {
-  await ref.read(dictionaryRepoProvider).initialize();
+  final isar = await ref.watch(isarProvider.future);
+  final repo = ref.read(dictionaryRepoProvider);
+  if (repo is JsonDictionaryRepository) {
+    await repo.initializeWithIsar(isar);
+  } else {
+    await repo.initialize();
+  }
 });
 
 /// =======================
@@ -112,10 +118,6 @@ final dictionaryInitializerProvider = FutureProvider<void>((ref) async {
 final inferenceServiceProvider = Provider<InferenceService>(
   (ref) => MethodChannelInferenceService(),
 );
-
-/// =======================
-///   ADVICE SERVICE
-/// =======================
 
 /// =======================
 ///   ADVICE SERVICE
@@ -169,7 +171,6 @@ final getEnhancedRecommendationUseCaseProvider =
     FutureProvider<GetEnhancedRecommendationUseCase>((ref) async {
       await ref.watch(dictionaryInitializerProvider.future);
       final adviceService = ref.read(adviceServiceProvider);
-      // final dict = ref.read(dictionaryRepoProvider); // Unused now
       return GetEnhancedRecommendationUseCaseImpl(adviceService);
     });
 

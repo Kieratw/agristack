@@ -9,6 +9,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:agristack/app/controllers/diagnosis_details_controller.dart';
 import 'package:agristack/domain/entities/entities.dart';
 
+import 'package:agristack/app/utils/translations.dart';
+
 class DiagnosisDetailsPage extends ConsumerStatefulWidget {
   final DiagnosisEntryEntity entry;
 
@@ -65,7 +67,7 @@ class _DiagnosisDetailsPageState extends ConsumerState<DiagnosisDetailsPage> {
           ),
           const SizedBox(height: 4),
           Text(
-            'Model: ${e.modelId} • ${(e.confidence * 100).toStringAsFixed(1)}%',
+            'Model: ${translateModelId(e.modelId)} • ${(e.confidence * 100).toStringAsFixed(1)}%',
             style: theme.textTheme.bodySmall,
           ),
           const SizedBox(height: 4),
@@ -262,33 +264,23 @@ class _DiagnosisDetailsPageState extends ConsumerState<DiagnosisDetailsPage> {
       barrierDismissible: false,
       builder: (ctx) => const Center(child: CircularProgressIndicator()),
     );
+    bool isDialogVisible = true;
 
     try {
       final entry = widget.entry;
       FieldEntity? field;
       FieldSeasonEntity? season;
 
-      // Fetch field data if linked
+      // Fetch field data if linked (Optimized)
       if (entry.fieldSeasonId != null) {
         final repo = await ref.read(fieldsRepoProvider.future);
-        final allFieldsRes = await repo.getAll();
+        final seasonRes = await repo.getSeason(entry.fieldSeasonId!);
 
-        if (allFieldsRes.isOk && allFieldsRes.data != null) {
-          // Iterate to find the matching season
-          for (final f in allFieldsRes.data!) {
-            final seasonsRes = await repo.getSeasons(f.id);
-            if (seasonsRes.isOk && seasonsRes.data != null) {
-              try {
-                final s = seasonsRes.data!.firstWhere(
-                  (s) => s.id == entry.fieldSeasonId,
-                );
-                field = f;
-                season = s;
-                break; // Found it
-              } catch (_) {
-                // Not in this field
-              }
-            }
+        if (seasonRes.isOk && seasonRes.data != null) {
+          season = seasonRes.data!;
+          final fieldRes = await repo.get(season.fieldId);
+          if (fieldRes.isOk) {
+            field = fieldRes.data;
           }
         }
       }
@@ -313,6 +305,11 @@ class _DiagnosisDetailsPageState extends ConsumerState<DiagnosisDetailsPage> {
       if (!context.mounted) return;
       // Close loading dialog
       Navigator.of(context).pop();
+      isDialogVisible = false;
+
+      // Small delay to ensure dialog animation is finished before opening native print UI
+      // This prevents the "sticky spinner" issue on some devices
+      await Future.delayed(const Duration(milliseconds: 500));
 
       await Printing.layoutPdf(
         onLayout: (_) => pdfBytes,
@@ -320,8 +317,10 @@ class _DiagnosisDetailsPageState extends ConsumerState<DiagnosisDetailsPage> {
       );
     } catch (e) {
       if (!context.mounted) return;
-      // Close loading dialog
-      Navigator.of(context).pop();
+      // Ensure dialog is closed if it wasn't already
+      if (isDialogVisible) {
+        Navigator.of(context).pop();
+      }
 
       showDialog(
         context: context,
@@ -351,8 +350,28 @@ class _ImageHeader extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: SizedBox(
         height: 220,
-        child: path.isNotEmpty && File(path).existsSync()
-            ? Image.file(File(path), fit: BoxFit.cover, width: double.infinity)
+        child: path.isNotEmpty
+            ? Image.file(
+                File(path),
+                fit: BoxFit.cover,
+                width: double.infinity,
+                errorBuilder: (context, error, stackTrace) {
+                  return const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.broken_image, size: 48, color: Colors.grey),
+                        SizedBox(height: 8),
+                        Text(
+                          'Zdjęcie niedostępne\n(plik usunięty lub przeniesiony)',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              )
             : const Center(child: Text('Brak zdjęcia')),
       ),
     );

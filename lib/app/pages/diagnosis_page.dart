@@ -11,6 +11,7 @@ import 'package:agristack/app/controllers/diagnosis_controller.dart';
 import 'package:agristack/app/di.dart';
 import 'package:agristack/app/services/location_permissions.dart';
 import 'package:agristack/domain/entities/entities.dart';
+import 'package:agristack/app/utils/translations.dart';
 
 class DiagnosisPage extends ConsumerWidget {
   const DiagnosisPage({super.key});
@@ -80,46 +81,32 @@ class DiagnosisPage extends ConsumerWidget {
             if (state.label != null && state.confidence != null)
               Card(
                 clipBehavior: Clip.antiAlias,
-                child: InkWell(
-                  onTap: state.isSaving
-                      ? null
-                      : () => _saveOnly(context, state, ctrl),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            const Expanded(
-                              child: Text(
-                                'Wynik diagnozy (podgląd)',
-                                style: TextStyle(fontWeight: FontWeight.bold),
-                              ),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'Wynik diagnozy (podgląd)',
+                              style: TextStyle(fontWeight: FontWeight.bold),
                             ),
-                            Icon(
-                              Icons.arrow_forward,
-                              size: 16,
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text('Choroba: ${state.label}'),
-                        Text(
-                          'Pewność: ${(state.confidence! * 100).toStringAsFixed(1)}%',
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Kliknij, aby zapisać i zapytać eksperta',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Theme.of(context).colorScheme.primary,
-                            fontStyle: FontStyle.italic,
                           ),
-                        ),
-                      ],
-                    ),
+                          Icon(
+                            Icons.check_circle_outline,
+                            size: 20,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text('Choroba: ${state.label}'),
+                      Text(
+                        'Pewność: ${(state.confidence! * 100).toStringAsFixed(1)}%',
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -182,8 +169,6 @@ class DiagnosisPage extends ConsumerWidget {
                     child: OutlinedButton.icon(
                       onPressed: () {
                         ctrl.reset();
-                        // Opcjonalnie: wróć do poprzedniego ekranu lub wyczyść formularz
-                        // context.pop(); // Jeśli chcemy wyjść
                       },
                       icon: const Icon(Icons.close),
                       label: const Text('Zamknij / Nowa diagnoza'),
@@ -214,18 +199,38 @@ class DiagnosisPage extends ConsumerWidget {
               Row(
                 children: [
                   Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: state.isSaving
+                          ? null
+                          : () => _saveDiagnosisAction(
+                              context,
+                              state,
+                              ctrl,
+                              navigateToDetails: false,
+                            ),
+                      icon: const Icon(Icons.save),
+                      label: const Text('Zapisz'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
                     child: ElevatedButton.icon(
                       onPressed: state.isSaving
                           ? null
-                          : () => _saveOnly(context, state, ctrl),
+                          : () => _saveDiagnosisAction(
+                              context,
+                              state,
+                              ctrl,
+                              navigateToDetails: true,
+                            ),
                       icon: state.isSaving
                           ? const SizedBox(
                               width: 16,
                               height: 16,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Icon(Icons.save),
-                      label: const Text('Zapisz diagnozę'),
+                          : const Icon(Icons.chat),
+                      label: const Text('Zapytaj AI o poradę'),
                     ),
                   ),
                 ],
@@ -237,11 +242,12 @@ class DiagnosisPage extends ConsumerWidget {
     );
   }
 
-  Future<void> _saveOnly(
+  Future<void> _saveDiagnosisAction(
     BuildContext context,
     DiagnosisState state,
-    DiagnosisController ctrl,
-  ) async {
+    DiagnosisController ctrl, {
+    required bool navigateToDetails,
+  }) async {
     double? lat = state.manualLat;
     double? lng = state.manualLng;
 
@@ -272,9 +278,13 @@ class DiagnosisPage extends ConsumerWidget {
     final savedEntry = await ctrl.saveDiagnosis(lat: lat, lng: lng);
     if (context.mounted) {
       if (savedEntry != null) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Diagnoza zapisana')));
+        if (navigateToDetails) {
+          context.push('/app/diagnosis/details', extra: savedEntry);
+        } else {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Diagnoza zapisana')));
+        }
       }
     }
   }
@@ -321,7 +331,29 @@ class _ImagePickerSection extends StatelessWidget {
                       style: TextStyle(color: Colors.white54),
                     ),
                   )
-                : Image.file(File(state.imagePath!), fit: BoxFit.cover),
+                : Image.file(
+                    File(state.imagePath!),
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.broken_image, color: Colors.white54),
+                            SizedBox(height: 4),
+                            Text(
+                              'Błąd wczytywania\n(plik usunięty?)',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white54,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
           ),
         ),
         const SizedBox(height: 8),
@@ -466,7 +498,7 @@ class _FieldSeasonDropdown extends StatelessWidget {
               .map(
                 (s) => DropdownMenuItem<int>(
                   value: s.id,
-                  child: Text('${s.year} • ${s.crop}'),
+                  child: Text('${s.year} • ${translateCropName(s.crop)}'),
                 ),
               )
               .toList(),

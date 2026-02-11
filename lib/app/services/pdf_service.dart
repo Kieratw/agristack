@@ -5,6 +5,8 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
+import 'package:agristack/app/utils/translations.dart';
+
 class PdfService {
   static Future<Uint8List> generateDiagnosisReport({
     required DiagnosisEntryEntity diagnosis,
@@ -15,8 +17,22 @@ class PdfService {
   }) async {
     final pdf = pw.Document();
 
-    final font = await PdfGoogleFonts.robotoRegular();
-    final fontBold = await PdfGoogleFonts.robotoBold();
+    pw.Font font;
+    pw.Font fontBold;
+
+    try {
+      final results = await Future.wait([
+        PdfGoogleFonts.robotoRegular(),
+        PdfGoogleFonts.robotoBold(),
+      ]).timeout(const Duration(seconds: 10));
+      font = results[0];
+      fontBold = results[1];
+    } catch (e) {
+      // Fallback to standard fonts if download fails or times out
+      // Note: Standard fonts might not support all Polish characters correctly
+      font = pw.Font.helvetica();
+      fontBold = pw.Font.helveticaBold();
+    }
 
     pdf.addPage(
       pw.Page(
@@ -78,7 +94,10 @@ class PdfService {
                     mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                     children: [
                       pw.Text('Uprawa:', style: pw.TextStyle(font: font)),
-                      pw.Text(season.crop, style: pw.TextStyle(font: fontBold)),
+                      pw.Text(
+                        translateCropName(season.crop),
+                        style: pw.TextStyle(font: fontBold),
+                      ),
                     ],
                   ),
                 pw.SizedBox(height: 20),

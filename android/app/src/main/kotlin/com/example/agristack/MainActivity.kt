@@ -51,24 +51,32 @@ class MainActivity : FlutterActivity() {
                             return@setMethodCallHandler
                         }
 
-                        try {
-                            // Uruchamiamy inferencję
-                            val outputs = runPytorchInference(
-                                context = this,
-                                imagePath = imagePath,
-                                assetPath = assetPath,
-                                inputSize = inputSize
-                            )
-                            // FloatArray -> List<double>
-                            result.success(outputs.map { it.toDouble() })
-                        } catch (e: Exception) {
-                            Log.e("AgriStackInference", "Inference failed for $assetPath", e)
-                            result.error(
-                                "inference_failed",
-                                "asset=$assetPath error=${e.message}",
-                                e.toString()
-                            )
-                        }
+                        // Uruchamiamy inferencję w wątku w tle, żeby nie blokować UI (i kamery)
+                        Thread {
+                            try {
+                                val outputs = runPytorchInference(
+                                    context = this,
+                                    imagePath = imagePath,
+                                    assetPath = assetPath,
+                                    inputSize = inputSize
+                                )
+                                // FloatArray -> List<double>
+                                val outputList = outputs.map { it.toDouble() }
+                                
+                                runOnUiThread {
+                                    result.success(outputList)
+                                }
+                            } catch (e: Exception) {
+                                Log.e("AgriStackInference", "Inference failed for $assetPath", e)
+                                runOnUiThread {
+                                    result.error(
+                                        "inference_failed",
+                                        "asset=$assetPath error=${e.message}",
+                                        e.toString()
+                                    )
+                                }
+                            }
+                        }.start()
                     }
 
                     else -> result.notImplemented()
@@ -110,15 +118,23 @@ class MainActivity : FlutterActivity() {
         // Krok 2: Lustrzane odbicie (Flip)
         val b2 = flipBitmap(b1)
         val r2 = forwardPass(module, b2, noMean, noStd)
+        b2.recycle() // Cleanup
 
         // Krok 3: Zoom (Center Crop 80%)
         val b3temp = centerCropBitmap(original, 0.8f)
         val b3 = Bitmap.createScaledBitmap(b3temp, inputSize, inputSize, true)
         val r3 = forwardPass(module, b3, noMean, noStd)
+        b3.recycle() // Cleanup
+        b3temp.recycle() // Cleanup
 
         // Krok 4: Przyciemnienie (Dark)
         val b4 = darkenBitmap(b1, 0.8f) // 0.8 = 80% jasności
         val r4 = forwardPass(module, b4, noMean, noStd)
+        b4.recycle() // Cleanup
+
+        // Sprzątanie głównych bitmap
+        b1.recycle()
+        original.recycle()
 
         // Uśrednianie wyników (działa zarówno dla logits jak i softmax probabilities)
         val numClasses = r1.size

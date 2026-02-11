@@ -223,7 +223,9 @@ class _SeasonsSection extends StatelessWidget {
               spacing: 8,
               runSpacing: 4,
               children: seasons.map((s) {
-                return Chip(label: Text('${s.year} • ${s.crop}'));
+                return Chip(
+                  label: Text('${s.year} • ${_translateCropName(s.crop)}'),
+                );
               }).toList(),
             ),
           ),
@@ -490,4 +492,19 @@ void _showAddSeasonDialog(
       },
     ),
   );
+}
+
+String _translateCropName(String raw) {
+  switch (raw) {
+    case 'wheat':
+      return 'Pszenica';
+    case 'oilseed_rape':
+      return 'Rzepak';
+    case 'potato':
+      return 'Ziemniak';
+    case 'tomato':
+      return 'Pomidor';
+    default:
+      return raw;
+  }
 }
